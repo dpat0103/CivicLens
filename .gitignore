@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.pyc
+*.db
+.venv/
+venv/
+*.egg-info/
+
+# env
+.env
+
+# OS
+.DS_Store
+
+# Node (frontend has its own .gitignore too, this catches root-level runs)
+node_modules/
