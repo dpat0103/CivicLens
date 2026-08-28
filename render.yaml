@@ -7,6 +7,8 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7   # pin to avoid pydantic-core needing to compile from source on newer Python versions
       - key: DATABASE_URL
         sync: false   # set manually in the Render dashboard -- your Neon connection string
       - key: CENSUS_API_KEY
