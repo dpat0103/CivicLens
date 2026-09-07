@@ -38,13 +38,14 @@ def compare_locations(
             raise HTTPException(status_code=404, detail=f"No location found for fips '{code}'")
 
         series_by_key = _location_series(db, location)
-        score, _ = scoring.compute_growth_score(series_by_key)
+        score, _, coverage = scoring.compute_growth_score(series_by_key)
 
         metrics = {}
         for key in COMPARE_METRIC_KEYS:
             series = series_by_key.get(key)
             metrics[key] = series["latest_value"] if series else None
 
-        rows.append({"location": location, "growth_score": score, "metrics": metrics})
+        rows.append({"location": location, "growth_score": score,
+                     "metric_coverage": coverage, "metrics": metrics})
 
     return {"metric_keys": COMPARE_METRIC_KEYS, "rows": rows}

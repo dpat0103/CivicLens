@@ -60,7 +60,7 @@ def get_area_report(fips: str, db: Session = Depends(get_db)):
     if not series_by_key:
         raise HTTPException(status_code=404, detail="No metric data ingested for this location yet")
 
-    score, label = scoring.compute_growth_score(series_by_key)
+    score, label, coverage = scoring.compute_growth_score(series_by_key)
     changes = scoring.headline_changes(series_by_key)
 
     categories: dict[str, list[dict]] = defaultdict(list)
@@ -73,6 +73,7 @@ def get_area_report(fips: str, db: Session = Depends(get_db)):
         "location": location,
         "growth_score": score,
         "growth_score_label": label,
+        "metric_coverage": coverage,
         "categories": categories,
         "headline_changes": changes,
     }

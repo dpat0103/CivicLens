@@ -1,17 +1,80 @@
 @import "tailwindcss";
 
+/* CivicLens design tokens
+   ------------------------
+   Reference point is the statistical atlas: census publications, municipal
+   boundary maps, government yearbooks. Precise, quiet, legible at small
+   sizes, willing to show its work. Not a SaaS dashboard.
+
+   Movement colour is teal/rose rather than green/red. Both read clearly for
+   the most common colour-vision deficiencies, where green and red do not,
+   and the pair is specific to this project rather than a default. */
+
 :root {
-  --background: #ffffff;
-  --foreground: #0f172a;
+  --paper: #f5f6f8; /* page ground, cool rather than cream */
+  --surface: #ffffff;
+  --ink: #12212e; /* primary text */
+  --ink-muted: #55677a; /* secondary text */
+  --ink-faint: #8a99a8; /* tertiary, labels */
+  --rule: #dfe4ea; /* hairlines, borders */
+  --rule-strong: #c4ccd6;
+
+  --favourable: #0e6e62; /* movement in the desirable direction */
+  --unfavourable: #9e3b54; /* movement in the undesirable direction */
+  --neutral: #7b8794;
+
+  --accent: #1d4e6f; /* interactive, links, focus */
+  --accent-soft: #e8eef3;
+
+  --flag: #9a6b12; /* provenance warnings */
+  --flag-soft: #fdf6e6;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --color-paper: var(--paper);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-faint: var(--ink-faint);
+  --color-rule: var(--rule);
+  --color-rule-strong: var(--rule-strong);
+  --color-favourable: var(--favourable);
+  --color-unfavourable: var(--unfavourable);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-flag: var(--flag);
+  --color-flag-soft: var(--flag-soft);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--paper);
+  color: var(--ink);
+}
+
+/* Figures line up in columns and don't jitter when values change.
+   This is why there is no monospace face anywhere: tabular figures do the
+   job that a mono face is usually reached for, without the costume. */
+.tabular {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+.serif {
+  font-family: var(--font-serif), Georgia, serif;
+}
+
+/* Keyboard focus stays visible everywhere. */
+:where(a, button, input, select, [tabindex]):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

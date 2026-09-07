@@ -11,6 +11,27 @@ This is a V1 pilot scoped to **15 New Jersey municipalities** across
 five dimensions: housing, employment, safety, transportation, and
 population, with 5 years of history (2021-2025).
 
+## Project status: active development
+
+This is not a finished product. It's a working end-to-end pilot with
+one real data source wired in and the rest still simulated, built
+this way deliberately: prove the architecture with mocked data first,
+then replace mock sources with live ones one at a time.
+
+| Dimension | Source | Status |
+|---|---|---|
+| Population | US Census ACS 5-Year Estimates | **Live** |
+| Median Household Income | US Census ACS 5-Year Estimates | **Live** |
+| Median Rent | US Census ACS 5-Year Estimates | **Live** |
+| Average Commute | US Census ACS 5-Year Estimates | **Live** |
+| Employment / Unemployment Rate | Bureau of Labor Statistics LAUS | Ingestion job written (`fetch_bls.py`), not yet run |
+| New Housing Permits | Census Building Permits Survey | Not yet built |
+| Property / Violent Crime Rate | NJ State Police UCR-SRS | Not yet built (still simulated) |
+| Transit Ridership | NJ Transit Open Data | Not yet built (still simulated) |
+
+Next up: run `fetch_bls.py` against live employment data, then build
+ingestion jobs for crime and housing permits.
+
 ---
 
 ## How it's built
@@ -40,11 +61,10 @@ changes.
 **Frontend:** Next.js (App Router) + TypeScript + Tailwind + Recharts.
 
 **Data:** This repo ships with a seeded, realistic sample dataset
-(`backend/ingestion/seed_data.py`) so the app runs immediately with no
-API keys. Two real ingestion jobs are also included
-(`fetch_census.py`, `fetch_bls.py`) as templates for pulling live data
-once you're ready to expand past the pilot -- see "Using real data"
-below.
+(`backend/ingestion/seed_data.py`) as a working baseline. Real
+ingestion jobs (`fetch_census.py`, `fetch_bls.py`) progressively
+replace the mock values with live figures — see the status table
+above for what's currently live vs. still simulated.
 
 ---
 
@@ -72,8 +92,8 @@ Quick check:
 
 ```bash
 curl http://localhost:8000/locations
-curl http://localhost:8000/locations/3403919000/report
-curl "http://localhost:8000/compare?fips=3403919000&fips=3401736080"
+curl http://localhost:8000/locations/3436000/report
+curl "http://localhost:8000/compare?fips=3436000&fips=3432250"
 ```
 
 ### 2. Frontend
@@ -162,14 +182,28 @@ replacing it with real figures:
 
 1. Get a free Census API key: https://api.census.gov/data/key_signup.html
 2. Get a free BLS API key: https://data.bls.gov/registrationEngine/
-3. `export CENSUS_API_KEY=...` and run `python -m ingestion.fetch_census.py --year 2025`
-4. `export BLS_API_KEY=...` and run `python -m ingestion.fetch_bls --fips <fips> --series <series_id> --start-year 2021 --end-year 2025`
+3. `$env:CENSUS_API_KEY = "..."` and run `python -m ingestion.fetch_census --year 2023 --state 34`
+   (ACS 5-year estimates lag by 1-2 years, so use the most recent
+   published year, not the current year)
+4. `$env:BLS_API_KEY = "..."` and run `python -m ingestion.fetch_bls --fips <fips> --series <series_id> --start-year 2021 --end-year 2025`
 
 Both jobs upsert into the same `metrics` table the seed script uses, so
-real and sample data slot into the exact same schema. Crime and
-transportation ingestion jobs (NJ State Police UCR-SRS, NJ Transit
-Open Data, municipal Socrata portals) aren't included yet — they're
-the natural next ingestion jobs to add, following the same pattern.
+real and sample data slot into the exact same schema.
+
+**Note on geographic matching:** the seeded Locations start with
+placeholder FIPS codes. `fetch_census.py` matches incoming Census rows
+to our Locations by name (not FIPS) and backfills the real FIPS code
+on first match — this also required a two-pass fallback, since a
+handful of NJ townships (Montclair among them) are classified by the
+Census Bureau as "county subdivisions" rather than "places" and don't
+appear in the primary place-level query at all. Real government data
+disagreeing on categories like this is exactly the kind of mess the
+normalization layer exists to handle.
+
+Crime and transportation ingestion jobs (NJ State Police UCR-SRS, NJ
+Transit Open Data, municipal Socrata portals) aren't built yet —
+they're the natural next ingestion jobs to add, following the same
+pattern.
 
 ## Roadmap ideas
 

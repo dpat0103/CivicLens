@@ -128,7 +128,8 @@ def build_metric_rows(m: dict, rng: random.Random) -> list[dict]:
         src, url = SOURCE_MAP[key]
         for year, value in series.items():
             rows.append(dict(category=category, metric_key=key, label=label, unit=unit,
-                              value=value, period=year, source=src, source_url=url))
+                              value=value, period=year, source=src, source_url=url,
+                              provenance="simulated"))
 
     add("population", "population", "Population", "count", m["pop"], m["pop_g"])
     add("median_household_income", "population", "Median Household Income", "$", m["income"], m["income_g"])

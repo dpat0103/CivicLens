@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: civiclens-api
+    runtime: python
+    rootDir: backend
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7   # pin to avoid pydantic-core needing to compile from source on newer Python versions
+      - key: DATABASE_URL
+        sync: false   # set manually in the Render dashboard -- your Neon connection string
+      - key: CENSUS_API_KEY
+        sync: false   # optional, only needed to re-run ingestion from this environment
+      - key: BLS_API_KEY
+        sync: false   # optional, only needed to re-run ingestion from this environment
