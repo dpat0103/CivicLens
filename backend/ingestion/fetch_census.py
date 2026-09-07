@@ -1,29 +1,17 @@
-"""
-Real ingestion job: US Census Bureau ACS 5-Year Estimates, at the county
-subdivision (municipality) level.
+"""Ingests Census ACS 5-Year Estimates at municipality level.
 
-Why this replaced the place-based version
--------------------------------------------
-The original queried `for=place:*`. For New Jersey that returns 700 rows,
-of which ~291 are CDPs (statistical areas with no municipal government)
-and only ~409 are incorporated. NJ has 564 municipalities, so the place
-endpoint structurally cannot see about 155 of them.
+Queries county subdivisions rather than places, for the reasons documented
+in seed_locations.py: the place endpoint cannot see roughly 155 of New
+Jersey's 564 municipalities.
 
-NJ municipalities are county subdivisions (MCDs), so that is the endpoint
-that returns exactly the right 564 rows, each already carrying its county.
+Fetch several vintages, not one. A single vintage yields no percent change,
+so every ACS indicator drops out of the Growth Score and the composite
+collapses onto countywide employment, which is identical for every
+municipality in a county.
 
-This also removes the name-matching step entirely. The old version matched
-incoming Census rows to Location rows by normalized name and backfilled
-FIPS on first match, which was necessary when the pilot used placeholder
-FIPS codes. Now seed_locations writes real MCD GEOIDs, so this job keys on
-FIPS directly. Name matching is kept only as a fallback for the original
-pilot rows that may not have been re-seeded yet.
+    python -m ingestion.fetch_census --start-year 2019 --end-year 2023
 
-Usage:
-    export CENSUS_API_KEY=your_key_here
-    python -m ingestion.fetch_census --year 2023
-
-Run seed_locations.py first.
+Requires seed_locations.py to have run first.
 """
 import argparse
 import os
@@ -53,23 +41,19 @@ VARIABLE_MAP = {
     "B25071_001E": ("rent_burden_pct", "Rent as % of Income", "%", "housing"),
 }
 
-# Mean travel time to work is NOT a published variable at the county
-# subdivision level. It has to be computed.
+# Mean travel time is not published as a variable at this geography level
+# and has to be computed. Note that B08303_001E is the TRAVEL TIME TO WORK
+# table total, meaning a count of commuters, not a duration; using it
+# directly yields "commutes" in the thousands.
 #
-# The original mapping used B08303_001E directly as "Average Commute", but
-# B08303 is the TRAVEL TIME TO WORK table and its _001E is the table total,
-# meaning the COUNT of workers who commute. That is why townships were
-# showing commutes in the thousands: those were people, not minutes.
-#
-# Correct form:
-#     mean minutes = aggregate travel time / number of commuters
+#     mean minutes = aggregate travel minutes / commuters
 #                  = B08013_001E / B08303_001E
 COMMUTE_AGGREGATE_MINUTES = "B08013_001E"
 COMMUTE_WORKER_COUNT = "B08303_001E"
 
-# Ratio metrics. Each is (numerator vars, denominator var, metric spec).
-# Numerators are summed, which is what educational attainment needs since
-# ACS splits it across four separate degree-level variables.
+# Indicators expressed as a percentage of a denominator, as
+# (numerator vars, denominator var, metric spec). Numerators are summed
+# because ACS splits some concepts across several variables.
 RATIO_METRICS = [
     (
         ["B25003_002E"], "B25003_001E",
@@ -100,11 +84,10 @@ RATIO_METRICS = [
 
 
 def _ratio(numerator_raws, denominator_raw) -> float | None:
-    """Percent of denominator, or None when the inputs can't support one.
+    """Numerator sum as a percentage of denominator, or None.
 
-    Returns None rather than 0 when the denominator is zero. A municipality
-    with no housing units has no meaningful vacancy rate, and recording 0%
-    would assert something false about it.
+    Returns None rather than 0 for a zero denominator. A municipality with
+    no housing units has no vacancy rate, and 0% would assert otherwise.
     """
     if denominator_raw in _SENTINELS:
         return None
@@ -131,9 +114,8 @@ def _ratio(numerator_raws, denominator_raw) -> float | None:
         return None
     return round(pct, 1)
 
-# Census "not available" sentinels. These are negative magic numbers, not
-# real values, and inserting them would poison every downstream percent
-# change and growth score.
+# Census "not available" markers. Negative magic numbers, not values.
+# Inserting one poisons every downstream percent change and score.
 _SENTINELS = {"-666666666", "-999999999", "-888888888", "-222222222", None, ""}
 
 _NOT_A_MUNICIPALITY = re.compile(r"not defined|not comparable", re.IGNORECASE)
@@ -153,13 +135,12 @@ def normalize(name: str) -> str:
 
 
 def _mean_commute(aggregate_raw, workers_raw) -> float | None:
-    """B08013_001E / B08303_001E, with the guards that matter.
+    """Mean one-way commute in minutes, or None.
 
-    Returns None rather than a wrong number when either input is a Census
-    sentinel, when there are no commuters to divide by, or when the result
-    lands outside anything a real commute could be. A silently wrong 4000
-    is far more damaging than a visible gap, because the gap is now
-    reported honestly by the metric coverage field.
+    Returns None for Census sentinels, zero commuters, and results outside
+    a plausible range. A gap is preferable to a wrong figure here: gaps are
+    reported through metric coverage, while a wrong value looks
+    authoritative and propagates into every percent change downstream.
     """
     if aggregate_raw in _SENTINELS or workers_raw in _SENTINELS:
         return None
@@ -205,9 +186,7 @@ def fetch_metrics(year: int, api_key: str) -> list[dict]:
             continue
 
         census_name = row[idx["NAME"]]
-        # Census placeholder for territory outside any municipality. Not a
-        # real place, and it was the single "unmatched" row reported on the
-        # first live run.
+        # Census placeholder for territory outside any municipality.
         if _NOT_A_MUNICIPALITY.search(census_name):
             continue
 
@@ -271,12 +250,42 @@ def fetch_metrics(year: int, api_key: str) -> list[dict]:
     return results
 
 
-def upsert(db, rows: list[dict]) -> dict:
+def upsert(db, rows: list[dict], progress: bool = False) -> dict:
+    """Write observations, replacing any existing row for the same
+    (location, metric, period).
+
+    Existing rows are loaded once into a dictionary rather than queried per
+    row. The obvious implementation issues a SELECT per observation, which
+    is invisible against local SQLite and brutal against a hosted database:
+    a full run is roughly 36,000 observations, so at a 30ms round trip that
+    is eighteen minutes of latency doing nothing but existence checks.
+
+    One query up front, then inserts batched through bulk_insert_mappings,
+    turns that into a few seconds.
+    """
     locations = db.query(models.Location).filter(models.Location.state == "NJ").all()
     by_fips = {loc.fips: loc for loc in locations}
     by_name = {loc.name.strip().lower(): loc for loc in locations}
 
-    matched, unmatched = 0, set()
+    periods = {row["period"] for row in rows}
+    metric_keys = {row["metric_key"] for row in rows}
+
+    # One query for every row this run could possibly collide with.
+    existing_rows = (
+        db.query(models.Metric)
+        .filter(
+            models.Metric.period.in_(periods),
+            models.Metric.metric_key.in_(metric_keys),
+        )
+        .all()
+    )
+    existing_by_key = {
+        (m.location_id, m.metric_key, m.period): m for m in existing_rows
+    }
+    if progress:
+        print(f"  {len(existing_rows):,} existing rows loaded for comparison")
+
+    updated, to_insert, unmatched = 0, [], set()
 
     for row in rows:
         location = by_fips.get(row["fips"]) or by_name.get(row["match_name"])
@@ -289,29 +298,37 @@ def upsert(db, rows: list[dict]) -> dict:
             location.fips = row["fips"]
             by_fips[row["fips"]] = location
 
-        existing = (
-            db.query(models.Metric)
-            .filter_by(location_id=location.id, metric_key=row["metric_key"], period=row["period"])
-            .first()
-        )
+        key = (location.id, row["metric_key"], row["period"])
+        existing = existing_by_key.get(key)
         if existing:
             existing.value = row["value"]
             existing.source = row["source"]
             existing.source_url = row["source_url"]
-            # Critical: without this, a row seeded as demo data keeps its
-            # "simulated" flag after being overwritten with real Census
-            # values, and the UI keeps warning about data that is now real.
+            # Reset provenance on update. A row overwritten with measured
+            # values must stop carrying a stale simulated flag.
             existing.provenance = "measured"
+            updated += 1
         else:
-            db.add(models.Metric(
-                location_id=location.id, category=row["category"], metric_key=row["metric_key"],
-                label=row["label"], unit=row["unit"], value=row["value"], period=row["period"],
-                source=row["source"], source_url=row["source_url"], provenance="measured",
+            to_insert.append(dict(
+                location_id=location.id, category=row["category"],
+                metric_key=row["metric_key"], label=row["label"], unit=row["unit"],
+                value=row["value"], period=row["period"], source=row["source"],
+                source_url=row["source_url"], provenance="measured",
             ))
-        matched += 1
 
+    if to_insert:
+        db.bulk_insert_mappings(models.Metric, to_insert)
     db.commit()
-    return {"matched": matched, "unmatched_names": sorted(unmatched)}
+
+    if progress:
+        print(f"  {len(to_insert):,} inserted, {updated:,} updated")
+
+    return {
+        "matched": len(to_insert) + updated,
+        "inserted": len(to_insert),
+        "updated": updated,
+        "unmatched_names": sorted(unmatched),
+    }
 
 
 if __name__ == "__main__":
@@ -346,26 +363,26 @@ if __name__ == "__main__":
 
     total, unmatched = 0, set()
     for year in years:
-        # Each ACS 5-year vintage is a separate API call. They overlap by four
-        # years of sample, so consecutive vintages are heavily smoothed and
-        # three-year gaps are far more meaningful than one-year ones.
+        # One API call per vintage. Consecutive 5-year vintages share four
+        # years of sample, so year-over-year movement is heavily smoothed
+        # and three-year gaps carry far more signal.
         print(f"Fetching ACS {year} 5-Year Estimates...")
         try:
             rows = fetch_metrics(year, key)
         except Exception as exc:
-            # Older vintages are sometimes unavailable at this geography level.
-            # Skip rather than abort, so one missing year doesn't lose the rest.
+            # Older vintages are occasionally unavailable at this geography
+            # level. Skip rather than abort so one gap doesn't lose the rest.
             print(f"  Skipped {year}: {exc}")
             continue
 
+        print(f"  {len(rows):,} observations parsed, writing...")
         db = SessionLocal()
         try:
-            result = upsert(db, rows)
+            result = upsert(db, rows, progress=True)
         finally:
             db.close()
         total += result["matched"]
         unmatched.update(result["unmatched_names"])
-        print(f"  Upserted {result['matched']} observations for {year}.")
 
     print(f"\nTotal: {total} metric observations, all marked provenance=measured.")
     if unmatched:

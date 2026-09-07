@@ -92,7 +92,16 @@ def parse_annual_values(series: dict) -> dict[int, float]:
     return out
 
 
-def upsert(db, county_fips: str, measure_code: str, values_by_year: dict[int, float]) -> int:
+def upsert(db, county_fips: str, measure_code: str, values_by_year: dict[int, float],
+           existing_by_key: dict | None = None, pending_inserts: list | None = None) -> int:
+    """Apply one county's series to every municipality in that county.
+
+    Existing rows are looked up in a dictionary passed in by the caller
+    rather than queried per row. A full run writes county figures to all 564
+    municipalities across two measures and five years, which is over 5,000
+    observations; querying each one separately is thousands of round trips
+    to a hosted database and takes minutes rather than seconds.
+    """
     mapping = MEASURE_CODE_MAP.get(measure_code)
     if not mapping:
         return 0
@@ -109,28 +118,25 @@ def upsert(db, county_fips: str, measure_code: str, values_by_year: dict[int, fl
               f"(run seed_locations.py first).")
         return 0
 
+    source = f"Bureau of Labor Statistics, LAUS ({county_name} County)"
     count = 0
+
     for location in locations:
         for year, value in values_by_year.items():
-            existing = (
-                db.query(models.Metric)
-                .filter_by(location_id=location.id, metric_key=metric_key, period=year)
-                .first()
-            )
+            key = (location.id, metric_key, year)
+            existing = existing_by_key.get(key) if existing_by_key is not None else None
             if existing:
                 existing.value = value
                 existing.provenance = "measured"
-                # Older rows were written before the countywide label
-                # existed, so bring them up to date rather than leaving a
-                # mix of labelled and unlabelled series.
+                # Older rows predate the countywide label, so bring them up
+                # to date rather than leaving a mix across the series.
                 existing.label = label
-                existing.source = f"Bureau of Labor Statistics, LAUS ({county_name} County)"
+                existing.source = source
             else:
-                db.add(models.Metric(
+                pending_inserts.append(dict(
                     location_id=location.id, category=category, metric_key=metric_key,
                     label=label, unit=unit, value=value, period=year,
-                    source=f"Bureau of Labor Statistics, LAUS ({county_name} County)",
-                    source_url="https://www.bls.gov/lau/",
+                    source=source, source_url="https://www.bls.gov/lau/",
                     provenance="measured",
                 ))
             count += 1
@@ -152,19 +158,43 @@ def run(start_year: int, end_year: int, api_key: str):
     db = SessionLocal()
     total = 0
     try:
+        metric_keys = {m[0] for m in MEASURE_CODE_MAP.values()}
+        periods = set(range(start_year, end_year + 1))
+
+        # One query covering everything this run could collide with, rather
+        # than one per observation.
+        existing_rows = (
+            db.query(models.Metric)
+            .filter(
+                models.Metric.metric_key.in_(metric_keys),
+                models.Metric.period.in_(periods),
+            )
+            .all()
+        )
+        existing_by_key = {
+            (m.location_id, m.metric_key, m.period): m for m in existing_rows
+        }
+        print(f"  {len(existing_rows):,} existing rows loaded for comparison")
+
+        pending_inserts: list[dict] = []
         for series in series_list:
             key = id_to_key.get(series["seriesID"])
             if not key:
                 continue
             county_fips, measure_code = key
             values = parse_annual_values(series)
-            n = upsert(db, county_fips, measure_code, values)
-            total += n
+            total += upsert(db, county_fips, measure_code, values,
+                            existing_by_key, pending_inserts)
+
+        if pending_inserts:
+            db.bulk_insert_mappings(models.Metric, pending_inserts)
         db.commit()
+        print(f"  {len(pending_inserts):,} inserted, "
+              f"{total - len(pending_inserts):,} updated")
     finally:
         db.close()
 
-    print(f"Upserted {total} metric observations across {len(NJ_COUNTIES)} counties.")
+    print(f"Upserted {total:,} observations across {len(NJ_COUNTIES)} counties.")
 
 
 if __name__ == "__main__":
