@@ -6,12 +6,42 @@ services:
     plan: free
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+
+    # The health endpoint issues a real query, so Render pulls the instance
+    # from rotation when Neon is unreachable rather than serving errors from
+    # something that reports itself healthy.
+    healthCheckPath: /
+
     envVars:
       - key: PYTHON_VERSION
-        value: 3.12.7   # pin to avoid pydantic-core needing to compile from source on newer Python versions
+        value: 3.12.7   # pinned so pydantic-core installs a wheel rather than compiling
+
       - key: DATABASE_URL
-        sync: false   # set manually in the Render dashboard -- your Neon connection string
+        sync: false     # Neon connection string, set in the Render dashboard
+
+      # REQUIRED. The API rejects cross-origin requests from anywhere not
+      # listed here, so the deployed frontend is blocked until this is set to
+      # its exact origin. Comma-separated, no trailing slash, scheme included.
+      #   https://civiclens.vercel.app
+      - key: ALLOWED_ORIGINS
+        sync: false
+
+      # Optional. Defaults are an offline embedder and an extractive
+      # summariser, which need no keys and keep the service running. Set
+      # these for production-quality answers.
+      - key: EMBEDDING_PROVIDER
+        value: hashing          # hashing | voyage | openai
+      - key: LLM_PROVIDER
+        value: extractive       # extractive | anthropic
+      - key: VOYAGE_API_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+
+      # Only needed to run ingestion from this environment. Ingestion is
+      # normally run locally against the Neon connection string instead,
+      # since the free instance has limited memory and a request timeout.
       - key: CENSUS_API_KEY
-        sync: false   # optional, only needed to re-run ingestion from this environment
+        sync: false
       - key: BLS_API_KEY
-        sync: false   # optional, only needed to re-run ingestion from this environment
+        sync: false
