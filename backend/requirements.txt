@@ -4,8 +4,5 @@ sqlalchemy==2.0.35
 pydantic==2.9.2
 requests==2.32.3
 python-dotenv==1.0.1
-<<<<<<< HEAD
 psycopg2-binary==2.9.9
-=======
 psycopg2-binary==2.9.9
->>>>>>> aab4d4b2820c67c3c9b04b571f979f7a3c63a13a
