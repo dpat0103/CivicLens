@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { scoreRingColor } from "@/lib/format";
 
 /**
@@ -91,6 +92,12 @@ export default function ScoreGauge({
           indicators
         </p>
       )}
+      <Link
+        href="/about#growth-score"
+        className="mt-1 text-xs text-accent underline underline-offset-4"
+      >
+        What is this score?
+      </Link>
     </div>
   );
 }

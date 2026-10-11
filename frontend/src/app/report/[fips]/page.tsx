@@ -29,8 +29,8 @@ export default async function ReportPage({
       <main className="mx-auto max-w-6xl px-6 py-16">
         <div className="max-w-xl border-l-2 border-unfavourable bg-surface px-4 py-3">
           <p className="text-ink">
-            The CivicLens API isn&rsquo;t responding. Start the backend on port
-            8000, then reload.
+            CivicLens is having trouble loading this town right now. Please try
+            again in a minute.
           </p>
         </div>
       </main>

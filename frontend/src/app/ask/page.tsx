@@ -6,7 +6,10 @@ export const metadata = {
     "Ask questions about New Jersey municipal statistics. Figures are read from the database; explanations are drawn from indexed records with sources attached.",
 };
 
-export default function AskPage() {
+export default async function AskPage({ searchParams }: PageProps<"/ask">) {
+  const { q } = await searchParams;
+  const initialQuestion = typeof q === "string" ? q : undefined;
+
   return (
     <main className="mx-auto max-w-3xl px-6 py-12">
       <h1 className="serif text-3xl tracking-tight text-ink">
@@ -20,7 +23,7 @@ export default function AskPage() {
       </p>
 
       <div className="mt-8">
-        <AskPanel />
+        <AskPanel initialQuestion={initialQuestion} />
       </div>
 
       <section className="mt-12 border-t border-rule pt-8">

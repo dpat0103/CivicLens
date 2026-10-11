@@ -7,7 +7,7 @@ import { API_BASE } from "@/lib/api";
 
 const TABS = [
   { href: "/", label: "Overview" },
-  { href: "/places", label: "Municipalities" },
+  { href: "/places", label: "Towns" },
   { href: "/compare", label: "Compare" },
   { href: "/ask", label: "Ask" },
   { href: "/about", label: "Method" },
@@ -29,15 +29,16 @@ export default function SiteHeader() {
 
   return (
     <header className="border-b border-rule bg-surface">
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-6 px-6 py-4">
-        <Link href="/" className="flex items-baseline gap-2">
+      <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:gap-6 sm:px-6">
+        <Link href="/" className="flex shrink-0 items-baseline gap-2">
           <span className="serif text-lg font-semibold tracking-tight text-ink">
             CivicLens
           </span>
           <span className="hidden text-xs text-ink-faint sm:inline">New Jersey</span>
         </Link>
 
-        <nav aria-label="Sections">
+        {/* Scrolls sideways on narrow phones instead of widening the page. */}
+        <nav aria-label="Sections" className="-mb-2 min-w-0 overflow-x-auto pb-2">
           <ul className="flex items-center gap-1">
             {TABS.map((tab) => {
               const active = isActive(tab.href);
@@ -48,8 +49,8 @@ export default function SiteHeader() {
                     aria-current={active ? "page" : undefined}
                     className={
                       active
-                        ? "block rounded px-3 py-1.5 text-sm font-medium text-ink"
-                        : "block rounded px-3 py-1.5 text-sm text-ink-muted transition-colors hover:text-ink"
+                        ? "block whitespace-nowrap rounded px-2 py-1.5 text-sm font-medium text-ink sm:px-3"
+                        : "block whitespace-nowrap rounded px-2 py-1.5 text-sm text-ink-muted transition-colors hover:text-ink sm:px-3"
                     }
                   >
                     <span className="relative">

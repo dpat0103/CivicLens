@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   askQuestion,
@@ -80,7 +80,14 @@ function CitationChip({ citation }: { citation: Citation }) {
   );
 }
 
-export default function AskPanel({ locationName }: { locationName?: string }) {
+export default function AskPanel({
+  locationName,
+  initialQuestion,
+}: {
+  locationName?: string;
+  // Asked automatically on mount, for links such as /ask?q=…
+  initialQuestion?: string;
+}) {
   const [question, setQuestion] = useState("");
   const [result, setResult] = useState<AskResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -119,13 +126,24 @@ export default function AskPanel({ locationName }: { locationName?: string }) {
         setError(e.message);
       } else {
         setError(
-          "Can't reach the CivicLens API. Make sure the backend is running on port 8000.",
+          "CivicLens is having trouble answering right now. Please try again in a minute.",
         );
       }
     } finally {
       setLoading(false);
     }
   }
+
+  // The ref keeps React's development double-mount from asking twice.
+  const askedInitial = useRef(false);
+  useEffect(() => {
+    if (!initialQuestion || askedInitial.current) return;
+    askedInitial.current = true;
+    setQuestion(initialQuestion);
+    submit(initialQuestion);
+    // submit is recreated every render; this should run once on mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialQuestion]);
 
   return (
     <div className="border border-rule bg-surface p-6">

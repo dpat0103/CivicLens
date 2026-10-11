@@ -7,14 +7,19 @@ export const metadata = {
 };
 
 function Section({
+  id,
   title,
   children,
 }: {
+  id?: string;
   title: string;
   children: React.ReactNode;
 }) {
   return (
-    <section className="border-t border-rule py-10 first:border-t-0 first:pt-0">
+    <section
+      id={id}
+      className="scroll-mt-6 border-t border-rule py-10 first:border-t-0 first:pt-0"
+    >
       <h2 className="serif text-2xl tracking-tight text-ink">{title}</h2>
       <div className="mt-4 max-w-[68ch] space-y-4 leading-relaxed text-ink-muted">
         {children}
@@ -84,7 +89,7 @@ export default function AboutPage() {
           </p>
         </Section>
 
-        <Section title="How the Growth Score is calculated">
+        <Section id="growth-score" title="How the Growth Score is calculated">
           <p>
             The Growth Score is a 0 to 100 composite of the three-year percent
             change in six weighted indicators: population and median household

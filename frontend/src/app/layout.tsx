@@ -18,9 +18,9 @@ const plexSerif = IBM_Plex_Serif({
 });
 
 export const metadata: Metadata = {
-  title: "CivicLens | New Jersey municipal statistics",
+  title: "CivicLens: Compare any New Jersey town",
   description:
-    "Housing, income, employment, education and commuting statistics for all 564 New Jersey municipalities, drawn from Census ACS and Bureau of Labor Statistics data.",
+    "Compare rent, home values, income and commute times across all 564 New Jersey towns, side by side, using official Census and Labor Department data.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

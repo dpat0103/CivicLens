@@ -1,18 +1,33 @@
 # CivicLens
 
-Municipal statistics for every New Jersey municipality, drawn from federal
-survey APIs and normalised into comparable series, with a question-answering
-layer built so that a language model can never produce a number.
+**Compare any two New Jersey towns in seconds.** Rent, home values, income,
+commute times and more for all 564 NJ towns, from official Census and Labor
+Department data, side by side.
 
-**564 municipalities · 15 indicators · 2019–2023 · ~40,000 observations · 122 tests**
+### [→ Try it live](https://civic-lens-khaki.vercel.app/)
 
-[Live CivicLens Deployed Site](https://civic-lens-khaki.vercel.app/)
+**What you can do**
+
+- **Look up a town.** See housing costs, income, education and commuting for
+  any New Jersey municipality, how each has changed since 2019, and the source
+  of every figure.
+- **Compare towns side by side.** Put up to six towns in one table to see where
+  they actually differ.
+- **Ask in plain English.** "What is the median rent in Princeton?" gets an
+  answer with its sources. The AI explains the data but never makes up a
+  number: figures are read straight from the database.
+
+**564 towns · 15 indicators · 2019–2023 · ~40,000 observations**
 
 <img width="1895" height="913" alt="CivicLensOverview" src="https://github.com/user-attachments/assets/15fab2eb-0b05-4437-ac82-b2da96de5a8b" />
 <img width="1887" height="912" alt="CivicLensAsk" src="https://github.com/user-attachments/assets/ce6ee297-5283-42d6-9cab-11d3831fb322" />
 <img width="1886" height="913" alt="CivicLensCompare" src="https://github.com/user-attachments/assets/4052e28f-690d-4df4-8986-7d77684e9107" />
 
+---
 
+**For engineers:** the interesting part is below. It covers reconciling
+several agencies' data formats into one comparable dataset, and a question-answering
+layer built so a language model structurally cannot produce a number.
 
 ---
 

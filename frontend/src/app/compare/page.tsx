@@ -5,6 +5,7 @@ import LocationSearch from "@/components/LocationSearch";
 import CompareTable from "@/components/CompareTable";
 import {
   compareLocations,
+  listLocations,
   type Location,
   type CompareResponse,
   ApiError,
@@ -15,6 +16,26 @@ export default function ComparePage() {
   const [data, setData] = useState<CompareResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Pre-fill from ?fips=…&fips=… so links such as the home page example
+  // open with the comparison already showing. Read from window.location
+  // rather than useSearchParams to avoid a Suspense boundary for one read.
+  useEffect(() => {
+    const wanted = new URLSearchParams(window.location.search)
+      .getAll("fips")
+      .slice(0, 6);
+    if (wanted.length === 0) return;
+    listLocations()
+      .then((all) => {
+        const byFips = new Map(all.map((l) => [l.fips, l]));
+        setSelected(
+          wanted
+            .map((f) => byFips.get(f))
+            .filter((l): l is Location => Boolean(l)),
+        );
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (selected.length < 2) {
@@ -29,7 +50,7 @@ export default function ComparePage() {
         setError(
           e instanceof ApiError
             ? e.message
-            : "The CivicLens API isn't responding. Start the backend on port 8000.",
+            : "CivicLens is having trouble loading this comparison. Please try again in a minute.",
         );
         setData(null);
       })
