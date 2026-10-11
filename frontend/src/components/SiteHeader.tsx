@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect } from "react";
+import { API_BASE } from "@/lib/api";
 
 const TABS = [
   { href: "/", label: "Overview" },
@@ -13,6 +15,12 @@ const TABS = [
 
 export default function SiteHeader() {
   const pathname = usePathname();
+
+  // Start waking the backend as soon as any page opens, so Ask and Compare
+  // are ready by the time a visitor reaches them even if it was asleep.
+  useEffect(() => {
+    fetch(`${API_BASE}/ping`).catch(() => {});
+  }, []);
 
   function isActive(href: string) {
     if (href === "/") return pathname === "/";

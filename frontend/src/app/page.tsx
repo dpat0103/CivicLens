@@ -1,3 +1,4 @@
+import { connection } from "next/server";
 import Link from "next/link";
 import LocationSearch from "@/components/LocationSearch";
 import { listLocations } from "@/lib/api";
@@ -17,6 +18,9 @@ const FEATURED = [
 ];
 
 export default async function HomePage() {
+  // Render per request so an "API isn't responding" page is never cached;
+  // the data itself comes from the fetch cache in lib/api.ts.
+  await connection();
   let locations: Awaited<ReturnType<typeof listLocations>> = [];
   let error: string | null = null;
   try {

@@ -98,8 +98,20 @@ class ApiError extends Error {
   }
 }
 
+/**
+ * GETs are cached in Next's data cache for a day when called from server
+ * components. The data only changes when ingestion is rerun, and the free
+ * Render backend can take 30-60 seconds to wake, so serving the cached copy
+ * means a sleeping backend never blocks a page. Failed fetches are not
+ * cached, and a failed background refresh keeps serving the stale copy.
+ * In the browser the `next` option is ignored.
+ */
+const REVALIDATE_SECONDS = 60 * 60 * 24;
+
 async function request<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, { cache: "no-store" });
+  const res = await fetch(`${API_BASE}${path}`, {
+    next: { revalidate: REVALIDATE_SECONDS },
+  });
   if (!res.ok) {
     const body = await res.json().catch(() => ({ detail: res.statusText }));
     throw new ApiError(body.detail || "Request failed", res.status);

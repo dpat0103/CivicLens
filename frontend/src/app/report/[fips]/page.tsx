@@ -1,3 +1,4 @@
+import { connection } from "next/server";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import ScoreGauge from "@/components/ScoreGauge";
@@ -14,6 +15,9 @@ import {
 export default async function ReportPage({
   params,
 }: PageProps<"/report/[fips]">) {
+  // Render per request so an "API isn't responding" page is never cached;
+  // the data itself comes from the fetch cache in lib/api.ts.
+  await connection();
   const { fips } = await params;
 
   let report;

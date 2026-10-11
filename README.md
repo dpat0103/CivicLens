@@ -399,6 +399,19 @@ creates, `fetch_bls_batch` groups by the county it populates, and
 
 `python -m ingestion.audit_data` checks integrity at any point.
 
+### Keeping the demo warm
+
+The API runs on Render's free plan, which sleeps after 15 idle minutes and
+takes 30–60 seconds to wake. Three things hide that:
+
+- A free [cron-job.org](https://cron-job.org) job sends `GET /ping` every 10
+  minutes. `/ping` skips the database, so Neon still autosuspends. One
+  always-on service uses about 744 of Render's 750 free hours a month.
+- Server-rendered pages read API data through Next's fetch cache (24 hours),
+  so they never wait on a sleeping backend.
+- The site header pings the API on page load, so a missed cron slot is
+  covered before a visitor reaches Ask or Compare.
+
 ### Configuration
 
 | Variable              | Default                 | Purpose                       |

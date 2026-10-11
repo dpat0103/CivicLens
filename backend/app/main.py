@@ -57,6 +57,18 @@ app.include_router(compare.router)
 app.include_router(ask.router)
 
 
+@app.get("/ping", tags=["health"])
+def ping():
+    """Keep-alive target that never touches the database.
+
+    The free Render instance sleeps after 15 idle minutes and takes 30-60
+    seconds to wake, so an external cron pings this to keep it warm. It
+    deliberately skips the database so Neon can still autosuspend between
+    real requests instead of burning free-plan compute hours around the clock.
+    """
+    return {"status": "ok"}
+
+
 @app.get("/", tags=["health"])
 def health():
     """Liveness and database reachability.
