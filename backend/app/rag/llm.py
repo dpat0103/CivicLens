@@ -3,8 +3,10 @@ Generation providers.
 
 The model only ever sees the explanatory path, and only ever sees retrieved
 context. The system prompt below forbids introducing numbers that are not
-present in that context, but the prompt is a second line of defence, not the
-first. The first is that questions asking for numbers never reach here at all.
+present in that context, but the prompt is not what enforces it. Questions
+asking for numbers never reach here at all, and whatever the model writes is
+checked by numeric_check.py, which discards any answer containing a number
+the context does not.
 
 `ExtractiveLLM` is the zero-configuration fallback. It stitches together the
 retrieved chunks without a model, so the endpoint degrades to something

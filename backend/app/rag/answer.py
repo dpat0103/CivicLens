@@ -15,6 +15,7 @@ the records that produced it.
 
 from __future__ import annotations
 
+import logging
 from collections import defaultdict
 
 from sqlalchemy.orm import Session
@@ -24,14 +25,27 @@ from ..scoring import build_series, compute_growth_score
 from . import store
 from .corpus import _fmt
 from .embeddings import get_embedder
-from .llm import SYSTEM_PROMPT, get_llm
-from .query_router import Intent, route
+from .llm import SYSTEM_PROMPT, ExtractiveLLM, get_llm
+from .numeric_check import ungrounded_numbers
+from .query_router import Intent, asks_for_reason, route
 from .resolver import resolve_places, strip_places
 
 # Below this cosine score the retrieved context is treated as irrelevant and
 # the endpoint refuses rather than generating. Tuned against the eval set in
 # tests/test_retrieval_eval.py.
 MIN_RETRIEVAL_SCORE = 0.12
+
+logger = logging.getLogger(__name__)
+
+# Reported on every response so the UI and logs can tell how the numbers in
+# an answer were established.
+#   not_applicable   no generated prose: SQL answers and refusals
+#   passed           every number in the generated text is in the context
+#   failed_fallback  the model introduced a number the context does not
+#                    contain, so its answer was replaced by the extractive one
+NUMERIC_NOT_APPLICABLE = "not_applicable"
+NUMERIC_PASSED = "passed"
+NUMERIC_FAILED_FALLBACK = "failed_fallback"
 
 
 def _metric_rows(db: Session, fips: str, metric_key: str) -> list[models.Metric]:
@@ -67,6 +81,7 @@ def _refusal(question: str, reason: str, db: Session, suggestions: list[str] | N
         "provenance": "n/a",
         "suggestions": suggestions or SUGGESTED_QUESTIONS,
         "retrieval": {"used": False, "chunks": []},
+        "numeric_check": NUMERIC_NOT_APPLICABLE,
     }
 
 
@@ -149,6 +164,7 @@ def _answer_lookup(db: Session, question: str, places, metric_keys) -> dict:
         "resolved_places": [{"fips": place.fips, "name": place.name}],
         "provenance": "simulated" if "simulated" in provenances else "measured",
         "retrieval": {"used": False, "chunks": []},
+        "numeric_check": NUMERIC_NOT_APPLICABLE,
     }
 
 
@@ -218,6 +234,7 @@ def _answer_compare(db: Session, question: str, places, metric_keys) -> dict:
         "resolved_places": [{"fips": p.fips, "name": p.name} for p in places],
         "provenance": "simulated" if "simulated" in provenances else "measured",
         "retrieval": {"used": False, "chunks": []},
+        "numeric_check": NUMERIC_NOT_APPLICABLE,
     }
 
 
@@ -260,10 +277,7 @@ def _retrieve(db, question, places, intent, embedder, categories=None):
     # overview request ("tell me about housing in Montclair") wants figures,
     # and a methodology chunk just adds a sentence about Census geography
     # that has nothing to do with the answer.
-    asks_why = question.lower().strip().startswith(("why", "how come")) or any(
-        w in question.lower() for w in ("explain", "reason", "because")
-    )
-    if asks_why:
+    if asks_for_reason(question):
         for hit in store.search(db, query_vec, top_k=1, kinds=["methodology"], query_text=question):
             if hit.row.chunk_id not in seen:
                 seen.add(hit.row.chunk_id)
@@ -328,6 +342,28 @@ def _answer_via_retrieval(db, question, places, intent, embedder, llm, categorie
     context = "\n---\n".join(h.row.text for h in ordered)
     user = f"CONTEXT:\n{context}\n\nQUESTION: {question}"
     answer = llm.generate(SYSTEM_PROMPT, user)
+    generator = llm.name
+
+    # Routing keeps value questions away from the model, but the context
+    # here is full of figures and a model can still misquote one. Every
+    # number in the answer must appear in what the model was shown;
+    # otherwise the answer is discarded for the extractive one, which can
+    # only repeat retrieved sentences.
+    ungrounded = ungrounded_numbers(answer, context)
+    if ungrounded:
+        logger.warning(
+            "generated answer contained numbers absent from its context %s; "
+            "replaced with extractive fallback (question=%r, generator=%s)",
+            ungrounded,
+            question,
+            generator,
+        )
+        fallback = ExtractiveLLM()
+        answer = fallback.generate(SYSTEM_PROMPT, user)
+        generator = fallback.name
+        numeric_check = NUMERIC_FAILED_FALLBACK
+    else:
+        numeric_check = NUMERIC_PASSED
 
     provenances = {h.row.provenance for h in hits} - {"n/a"}
     if "simulated" in provenances and "simulated" not in answer.lower():
@@ -354,9 +390,29 @@ def _answer_via_retrieval(db, question, places, intent, embedder, llm, categorie
             "used": True,
             "chunks": [h.row.chunk_id for h in hits],
             "top_score": round(hits[0].score, 4),
-            "generator": llm.name,
+            "generator": generator,
         },
+        "numeric_check": numeric_check,
     }
+
+
+def _append_explanation(result: dict, db, question, places, embedder, llm) -> None:
+    """Add a retrieved explanation after SQL comparison figures.
+
+    A question like "why do Hoboken and Bayonne have the same employment"
+    names places and a metric, so its figures come from SQL. The "why" part
+    is still worth answering from the methodology notes. That explanation
+    goes through the same numeric check as any generated answer, and is
+    dropped silently if retrieval finds nothing relevant: the figures stand
+    on their own.
+    """
+    explanation = _answer_via_retrieval(db, question, places, Intent.EXPLANATORY, embedder, llm)
+    if not explanation["grounded"]:
+        return
+    result["answer"] = f"{result['answer']} {explanation['answer']}"
+    result["citations"] = result["citations"] + explanation["citations"]
+    result["retrieval"] = explanation["retrieval"]
+    result["numeric_check"] = explanation["numeric_check"]
 
 
 def answer_question(db: Session, question: str, embedder=None, llm=None) -> dict:
@@ -375,7 +431,10 @@ def answer_question(db: Session, question: str, embedder=None, llm=None) -> dict
     if routed.intent is Intent.LOOKUP:
         return _answer_lookup(db, question, places, routed.metric_keys)
     if routed.intent is Intent.COMPARE:
-        return _answer_compare(db, question, places, routed.metric_keys)
+        result = _answer_compare(db, question, places, routed.metric_keys)
+        if routed.explain:
+            _append_explanation(result, db, question, places, embedder, llm)
+        return result
     if routed.intent in (Intent.EXPLANATORY, Intent.METHODOLOGY):
         return _answer_via_retrieval(db, question, places, routed.intent, embedder, llm, routed.categories)
     if places:

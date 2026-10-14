@@ -122,6 +122,11 @@ class AskResponse(BaseModel):
     # somewhere instead of just closing the door.
     suggestions: list[str] = []
     retrieval: RetrievalTrace
+    # How the numbers in a generated answer were checked: "not_applicable"
+    # for SQL answers and refusals, "passed" when every number appears in
+    # the retrieved records, "failed_fallback" when the model introduced one
+    # that did not and the extractive answer was shown instead.
+    numeric_check: str = "not_applicable"
 
 
 class CorpusStats(BaseModel):

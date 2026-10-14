@@ -20,13 +20,18 @@ ROUTING_CASES = [
     ("compare and", 2, Intent.COMPARE),
     ("median rent in versus", 2, Intent.COMPARE),
     ("population of , and", 3, Intent.COMPARE),
+    # Two places and a metric are compared from SQL even when phrased as
+    # advice or a why question; explanatory markers must not win.
+    ("should i move to or for cheaper rent", 2, Intent.COMPARE),
+    ("which is a better place for income, or", 2, Intent.COMPARE),
+    ("why do and have the same employment", 2, Intent.COMPARE),
     # EXPLANATORY: asks why, or for an overview of one place
     ("why is the growth score what it is in", 1, Intent.EXPLANATORY),
     ("explain the employment numbers in", 1, Intent.EXPLANATORY),
     ("tell me about housing in", 1, Intent.EXPLANATORY),
     ("how is doing", 1, Intent.EXPLANATORY),
     ("what is going on in", 1, Intent.EXPLANATORY),
-    ("why do and have the same employment", 2, Intent.EXPLANATORY),
+    ("why does score lower than", 2, Intent.EXPLANATORY),
     # METHODOLOGY: about the data itself, no place named
     ("how is the growth score calculated", 0, Intent.METHODOLOGY),
     ("where does the data come from", 0, Intent.METHODOLOGY),
@@ -79,3 +84,18 @@ def test_unemployment_does_not_also_detect_employment():
 
 def test_detect_categories():
     assert detect_categories("tell me about housing and jobs") == ["housing", "employment"]
+
+
+@pytest.mark.parametrize(
+    "query, explain",
+    [
+        ("why do and have the same employment", True),
+        ("explain the rent gap between and", True),
+        ("should i move to or for cheaper rent", False),
+        ("compare rent in and", False),
+    ],
+)
+def test_compare_flags_only_why_questions_for_an_explanation(query, explain):
+    routed = route(query, 2)
+    assert routed.intent is Intent.COMPARE
+    assert routed.explain is explain

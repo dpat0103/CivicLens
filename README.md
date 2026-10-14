@@ -27,7 +27,8 @@ Department data, side by side.
 
 **For engineers:** the interesting part is below. It covers reconciling
 several agencies' data formats into one comparable dataset, and a question-answering
-layer built so a language model structurally cannot produce a number.
+layer where every figure comes from SQL or is verified against the records
+it was quoted from.
 
 ---
 
@@ -64,11 +65,16 @@ reconciliation, and the constraint the assistant is built around.
 
 ## The central design decision
 
-**A language model never produces a number.**
+**Values come from SQL. Any number in generated prose is verified against the
+records it was written from before it is shown.**
 
 A model handed a table of figures will produce a fluent, confident, wrong
-one. Prompt instructions reduce that. They do not eliminate it. So questions
-asking for a value never reach a model at all.
+one. Prompt instructions reduce that. They do not eliminate it. So the
+guarantee is enforced in code, in two layers.
+
+**1. Value questions never reach a model.** A question asking for a figure,
+or comparing places on a metric, is answered by a SQL query and a format
+string.
 
 ```
 question
@@ -79,16 +85,18 @@ resolve municipality names → FIPS codes
    ▼
 classify intent
    │
-   ├── LOOKUP ──────→ SQL → format string          no model
-   ├── COMPARE ─────→ SQL → format string          no model
-   ├── EXPLANATORY ─→ retrieve → model
-   ├── METHODOLOGY ─→ retrieve → model
+   ├── LOOKUP ──────→ SQL → format string                     no model
+   ├── COMPARE ─────→ SQL → format string                     no model
+   │                  (+ retrieved explanation if it asks why, checked as below)
+   ├── EXPLANATORY ─→ retrieve → model → numeric check
+   ├── METHODOLOGY ─→ retrieve → model → numeric check
    └── UNSUPPORTED ─→ refuse, with suggestions
 ```
 
-The failure mode that makes LLM data tools untrustworthy is removed
-structurally rather than discouraged. A test enforces it by injecting a model
-that raises if it is ever reached on a numeric path:
+Two or more places plus a known metric always route to COMPARE, even when
+the question is phrased as advice ("Should I move to Montclair or Bloomfield
+for cheaper rent?") or asks why. A test injects a model that raises if it is
+ever reached on these paths:
 
 ```python
 def test_lookup_never_invokes_the_model(db):
@@ -96,17 +104,29 @@ def test_lookup_never_invokes_the_model(db):
         def generate(self, system, user):
             raise AssertionError("the model was reached on a numeric lookup")
 
-    result = answer_question(db, "What is the median rent in Montclair?",
-                             llm=ExplodingLLM())
+    result = answer_question(db, "What is the median rent in Montclair?", llm=ExplodingLLM())
     assert result["intent"] == "lookup"
     assert result["retrieval"]["used"] is False
 ```
 
-**The cost.** Intent classification becomes a correctness boundary. A
-misrouted lookup lands in the model. That is why routing is rule-based and
-covered by parametrised tests rather than being a second model call: a
-classifier that is itself probabilistic would put the guarantee back on the
-thing it was meant to protect against.
+**2. Generated prose is checked number by number.** Explanatory answers are
+written from retrieved fact cards, which contain figures, so a model could
+still misquote one. After generation, `app/rag/numeric_check.py` extracts
+every number in the output (integers, decimals, percentages, currency,
+thousands separators), normalizes formatting, and requires each one to appear
+in the retrieved context. If any does not, the generated answer is discarded
+and replaced by the extractive answer, which can only quote retrieved
+sentences. The response reports `"numeric_check": "failed_fallback"`, the
+interface says so, and the event is logged. The check is deterministic; there
+is no second model call. Tests cover a fake model that invents a figure (it
+falls back) and one that only repeats context figures (it passes).
+
+**The cost.** Intent classification is a correctness boundary: a misrouted
+lookup lands in the model, where only the numeric check stands between it and
+the user. That is why routing is rule-based and covered by parametrised tests
+rather than being a second model call: a classifier that is itself
+probabilistic would put the guarantee back on the thing it was meant to
+protect against.
 
 The interface labels which path answered, because a figure read from a table
 and a sentence assembled from records carry different confidence, and prose

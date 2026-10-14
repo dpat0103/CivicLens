@@ -211,6 +211,13 @@ export interface AskResponse {
   provenance: string;
   suggestions: string[];
   retrieval: RetrievalTrace;
+  /**
+   * How numbers in generated text were verified. "passed": every number
+   * appears in the cited records. "failed_fallback": the model introduced
+   * one that did not, so a direct extract replaced its answer.
+   * "not_applicable": no generated text (database answers and refusals).
+   */
+  numeric_check?: "not_applicable" | "passed" | "failed_fallback";
 }
 
 export interface CorpusStats {

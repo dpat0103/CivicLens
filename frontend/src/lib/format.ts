@@ -131,11 +131,34 @@ export const INTENT_EXPLANATIONS: Record<string, string> = {
   compare:
     "These figures were read straight from the database. No language model was involved, so the numbers cannot be invented.",
   explanatory:
-    "This answer was assembled from indexed records, listed below. Nothing outside those records was used.",
+    "This answer was assembled from indexed records, listed below. Every number in it was checked against those records.",
   methodology:
-    "This answer was assembled from the methodology notes, listed below.",
+    "This answer was assembled from the methodology notes, listed below. Every number in it was checked against those notes.",
   unsupported: "Nothing in the dataset answers this.",
 };
+
+/**
+ * The note shown under an answer. Mostly the per-intent text above, with two
+ * cases it cannot express: a comparison that also carries a retrieved
+ * explanation, and a generated answer whose numbers failed verification and
+ * was replaced by a direct extract.
+ */
+export function answerExplanation(result: {
+  intent: string;
+  retrieval: { used: boolean };
+  numeric_check?: string;
+}): string {
+  let text = INTENT_EXPLANATIONS[result.intent] ?? "";
+  if (result.intent === "compare" && result.retrieval.used) {
+    text =
+      "The figures were read straight from the database. The explanation after them was assembled from the indexed records listed below, and every number in it was checked against those records.";
+  }
+  if (result.numeric_check === "failed_fallback") {
+    text +=
+      " The generated explanation mentioned a number that is not in those records, so sentences quoted directly from them are shown instead.";
+  }
+  return text;
+}
 
 export function intentTone(intent: string): string {
   switch (intent) {

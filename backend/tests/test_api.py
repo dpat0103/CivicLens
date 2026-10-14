@@ -91,6 +91,7 @@ def test_ask(client):
     body = client.post("/ask", json={"question": "What is the median rent in Hoboken?"}).json()
     assert body["intent"] == "lookup"
     assert "$2,689" in body["answer"]
+    assert body["numeric_check"] == "not_applicable"
 
 
 def test_ask_without_an_index_is_503(client_for, empty_db):

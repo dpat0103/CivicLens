@@ -132,6 +132,20 @@ class RoutedQuery:
     place_count: int
     reason: str
     categories: list[str] = field(default_factory=list)
+    # Set on a COMPARE that also asks why. The figures still come from SQL;
+    # this only asks the answer layer to add a retrieved explanation after
+    # them, which is subject to the numeric check like any generated text.
+    explain: bool = False
+
+
+# Phrases that ask for a reason. Narrower than EXPLANATORY_MARKERS on
+# purpose: "should I move to X or Y" wants a comparison, not an essay.
+REASON_MARKERS = ("explain", "reason", "because")
+
+
+def asks_for_reason(query: str) -> bool:
+    text = query.lower().strip()
+    return text.startswith(("why", "how come")) or any(m in text for m in REASON_MARKERS)
 
 
 def detect_metrics(query: str) -> list[str]:
@@ -160,6 +174,20 @@ def route(query: str, place_count: int) -> RoutedQuery:
     if place_count == 0 and any(m in text for m in METHODOLOGY_MARKERS):
         return RoutedQuery(
             Intent.METHODOLOGY, metrics, place_count, "asks about the data or the scoring method itself"
+        )
+
+    # Two or more places plus a known metric is a comparison of values, so
+    # it is answered from SQL even when phrased as advice or a why question
+    # ("should I move to Montclair or Bloomfield for cheaper rent"). Letting
+    # the explanatory markers below win would hand a numeric question to the
+    # model.
+    if place_count >= 2 and metrics:
+        return RoutedQuery(
+            Intent.COMPARE,
+            metrics,
+            place_count,
+            "names two or more municipalities and a metric",
+            explain=asks_for_reason(text),
         )
 
     if any(text.strip().startswith(m) or f" {m} " in text for m in EXPLANATORY_MARKERS):
