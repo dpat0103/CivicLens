@@ -170,9 +170,6 @@ _METRIC_NAMES = {
     "bachelors_or_higher_pct": "share of adults with a bachelor's degree",
     "poverty_rate": "poverty rate",
     "employment": "countywide employment",
-    "new_housing_permits": "new housing permits",
-    "property_crime_rate": "property crime rate",
-    "violent_crime_rate": "violent crime rate",
 }
 
 
@@ -259,15 +256,15 @@ def build_methodology_docs() -> list[Chunk]:
             "values must say so explicitly.",
         ),
         (
-            "meth:crime_data",
-            "Crime rate caveats",
-            "Property and violent crime rates are drawn from New Jersey State Police Uniform Crime "
-            "Reporting summary data and are expressed per 1,000 residents. Reporting is voluntary and "
-            "agency participation varies year to year, so an apparent drop in crime can reflect a "
-            "reporting gap rather than an actual decline. Rates are also sensitive to the population "
-            "denominator, which means a municipality with a large daytime or commuter population can "
-            "look worse than residents experience. Crime figures carry a negative weight in the Growth "
-            "Score, so lower values raise the score.",
+            "meth:not_tracked",
+            "What CivicLens does not track",
+            "CivicLens does not track crime, building permits or transit ridership. Sources exist for "
+            "each, but none offers statewide coverage of New Jersey municipalities through an API. An "
+            "indicator held for only some municipalities cannot be compared across the state, and a "
+            "composite score that silently drops it elsewhere would mean something different in every "
+            "place, so these are left out rather than partially included. For getting around, CivicLens "
+            "reports the share of workers commuting by public transit and the average commute time, "
+            "both from the American Community Survey for every municipality.",
         ),
     ]
     return [

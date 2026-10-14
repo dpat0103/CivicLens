@@ -88,3 +88,32 @@ def test_empty_question_is_refused(db, question):
     result = answer_question(db, question, llm=ExplodingLLM())
     assert result["intent"] == "unsupported"
     assert result["answer"] == "Enter a question to get started."
+
+
+@pytest.mark.parametrize(
+    "question, topic, suggestion",
+    [
+        ("What is the crime rate in Newark?", "crime", "What is the poverty rate in Newark?"),
+        ("How many building permits did Hoboken issue?", "building permits", "median home value in Hoboken"),
+        (
+            "What is transit ridership in Jersey City?",
+            "transit ridership",
+            "commute by transit in Jersey City",
+        ),
+        ("Is crime going up?", "crime", "poverty rate in Hoboken"),
+    ],
+)
+def test_untracked_topics_are_refused_with_the_reason(db, question, topic, suggestion):
+    result = answer_question(db, question, llm=ExplodingLLM())
+    assert result["intent"] == "unsupported"
+    assert result["grounded"] is False
+    assert f"CivicLens does not track {topic}" in result["answer"]
+    assert "every New Jersey municipality" in result["answer"]
+    assert any(suggestion in s for s in result["suggestions"])
+
+
+def test_transit_question_answers_the_commute_share(db):
+    result = answer_question(db, "What share of workers commute by transit in Hoboken?", llm=ExplodingLLM())
+    assert result["intent"] == "lookup"
+    assert result["citations"][0]["metric_keys"] == ["transit_commute_pct"]
+    assert "Commute by Public Transit in Hoboken" in result["answer"]

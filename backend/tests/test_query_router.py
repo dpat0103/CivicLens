@@ -99,3 +99,92 @@ def test_compare_flags_only_why_questions_for_an_explanation(query, explain):
     routed = route(query, 2)
     assert routed.intent is Intent.COMPARE
     assert routed.explain is explain
+
+
+# Every metric ingestion writes is reachable by name, and nothing else is.
+@pytest.mark.parametrize(
+    "query, expected",
+    [
+        ("what is the median rent", ["median_rent"]),
+        ("median home value", ["median_home_value"]),
+        ("house prices", ["median_home_value"]),
+        ("per capita income", ["per_capita_income"]),
+        ("rent burden", ["rent_burden_pct"]),
+        ("homeownership rate", ["homeownership_rate"]),
+        ("vacancy rate", ["vacancy_rate"]),
+        ("poverty rate", ["poverty_rate"]),
+        ("share with a bachelor's degree", ["bachelors_or_higher_pct"]),
+        ("median age", ["median_age"]),
+        ("share who commute by transit", ["transit_commute_pct"]),
+        ("public transportation", ["transit_commute_pct"]),
+        ("how long is the commute", ["avg_commute_minutes"]),
+    ],
+)
+def test_every_ingested_metric_is_detectable(query, expected):
+    assert detect_metrics(query) == expected
+
+
+def test_vocabulary_matches_ingested_metrics():
+    from app.rag.query_router import METRIC_PATTERNS
+
+    ingested = {
+        "population",
+        "median_age",
+        "median_household_income",
+        "per_capita_income",
+        "poverty_rate",
+        "bachelors_or_higher_pct",
+        "median_rent",
+        "median_home_value",
+        "rent_burden_pct",
+        "homeownership_rate",
+        "vacancy_rate",
+        "avg_commute_minutes",
+        "transit_commute_pct",
+        "employment",
+        "unemployment_rate",
+    }
+    assert {key for key, _ in METRIC_PATTERNS} == ingested
+
+
+@pytest.mark.parametrize("query", ["the current population", "what is the latest population"])
+def test_metric_words_match_whole_words_only(query):
+    # "current" contains "rent".
+    assert detect_metrics(query) == ["population"]
+
+
+def test_per_capita_income_is_not_also_household_income():
+    assert detect_metrics("per capita income") == ["per_capita_income"]
+
+
+@pytest.mark.parametrize(
+    "query, topics",
+    [
+        ("what is the crime rate in", ["crime"]),
+        ("is safe", ["crime"]),
+        ("how many burglaries in", ["crime"]),
+        ("how many building permits were issued in", ["building permits"]),
+        ("transit ridership in", ["transit ridership"]),
+        ("crime and permits in", ["crime", "building permits"]),
+    ],
+)
+def test_untracked_topics_are_unsupported(query, topics):
+    routed = route(query, 1)
+    assert routed.intent is Intent.UNSUPPORTED
+    assert routed.untracked == topics
+
+
+def test_ridership_is_not_answered_with_the_commute_share():
+    assert detect_metrics("transit ridership") == []
+
+
+def test_tracked_metric_alongside_untracked_topic_is_still_answered():
+    routed = route("crime and median rent in", 1)
+    assert routed.intent is Intent.LOOKUP
+    assert routed.metric_keys == ["median_rent"]
+
+
+def test_no_safety_category():
+    from app.rag.query_router import CATEGORY_PATTERNS
+
+    assert set(CATEGORY_PATTERNS) == {"housing", "population", "employment", "transportation"}

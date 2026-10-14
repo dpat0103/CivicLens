@@ -85,6 +85,31 @@ def _refusal(question: str, reason: str, db: Session, suggestions: list[str] | N
     }
 
 
+# Why each untracked topic is missing, and what CivicLens does hold that is
+# closest to it.
+UNTRACKED_EXPLANATIONS = {
+    "crime": ("crime", "What is the poverty rate in {place}?"),
+    "building permits": ("building permits", "What is the median home value in {place}?"),
+    "transit ridership": ("transit ridership", "What share of workers commute by transit in {place}?"),
+}
+
+
+def _untracked_refusal(question: str, topics: list[str], places, db: Session) -> dict:
+    names = [UNTRACKED_EXPLANATIONS[t][0] for t in topics]
+    listed = names[0] if len(names) == 1 else ", ".join(names[:-1]) + " or " + names[-1]
+    place = places[0].name if places else "Hoboken"
+    suggestions = [UNTRACKED_EXPLANATIONS[t][1].format(place=place) for t in topics]
+    suggestions.append(f"Tell me about housing in {place}")
+    return _refusal(
+        question,
+        f"CivicLens does not track {listed}. No source offers it for every New Jersey "
+        "municipality through an API, and a figure held for only some towns cannot be "
+        "compared across the state, so it is left out rather than partially covered.",
+        db,
+        suggestions=suggestions,
+    )
+
+
 def _provenance_note(provenances: set[str]) -> str:
     if provenances == {"simulated"}:
         return (
@@ -435,6 +460,8 @@ def answer_question(db: Session, question: str, embedder=None, llm=None) -> dict
         if routed.explain:
             _append_explanation(result, db, question, places, embedder, llm)
         return result
+    if routed.untracked:
+        return _untracked_refusal(question, routed.untracked, places, db)
     if routed.intent in (Intent.EXPLANATORY, Intent.METHODOLOGY):
         return _answer_via_retrieval(db, question, places, routed.intent, embedder, llm, routed.categories)
     if places:

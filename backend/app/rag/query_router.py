@@ -28,31 +28,110 @@ class Intent(str, Enum):
     UNSUPPORTED = "unsupported"  # outside what the data can answer
 
 
-# Metric vocabulary. Order matters: more specific phrases are checked first
-# so "unemployment rate" is not swallowed by "employment".
+# Metric vocabulary, one entry per metric that ingestion actually writes
+# (fetch_census.py and fetch_bls_batch.py). Order matters: specific phrases
+# come first and are consumed when matched, so "unemployment rate" is not
+# also read as employment, and "per capita income" is not also household
+# income. Phrases match whole words only: as a substring, "rent" would match
+# "current".
 METRIC_PATTERNS: list[tuple[str, list[str]]] = [
-    ("unemployment_rate", ["unemployment", "jobless", "out of work"]),
-    ("median_household_income", ["household income", "median income", "income", "earnings", "salary"]),
-    ("median_rent", ["rent", "rental", "rents", "cost of housing", "housing cost"]),
-    ("new_housing_permits", ["permit", "permits", "new construction", "building permit", "new housing"]),
+    ("unemployment_rate", ["unemployment rate", "unemployment", "jobless", "out of work"]),
+    ("per_capita_income", ["per capita income", "per capita", "income per person"]),
+    ("rent_burden_pct", ["rent burden", "rent burdened", "rent as a share of income"]),
+    (
+        "median_household_income",
+        ["household income", "median income", "income", "incomes", "earnings", "salary", "salaries"],
+    ),
+    (
+        "median_home_value",
+        [
+            "median home value",
+            "home value",
+            "home values",
+            "house value",
+            "house values",
+            "home price",
+            "home prices",
+            "house price",
+            "house prices",
+            "property value",
+            "property values",
+        ],
+    ),
+    (
+        "homeownership_rate",
+        ["homeownership", "home ownership", "homeowners", "own their home", "owner occupied"],
+    ),
+    ("vacancy_rate", ["vacancy rate", "vacancy", "vacancies", "vacant"]),
+    (
+        "median_rent",
+        ["rent", "rents", "rental", "rentals", "cost of housing", "housing cost", "housing costs"],
+    ),
+    ("poverty_rate", ["poverty rate", "poverty", "below the poverty line"]),
+    (
+        "bachelors_or_higher_pct",
+        ["bachelor's degree", "bachelor's", "bachelors", "college degree", "college educated", "education"],
+    ),
+    ("median_age", ["median age", "average age", "how old"]),
     ("employment", ["employment", "jobs", "employed", "workforce"]),
     ("population", ["population", "residents", "how many people", "people live"]),
-    ("property_crime_rate", ["property crime", "burglary", "theft"]),
-    ("violent_crime_rate", ["violent crime", "assault", "homicide"]),
-    ("avg_commute_minutes", ["commute", "commuting", "travel time", "drive to work"]),
-    ("transit_ridership_index", ["transit", "ridership", "public transportation", "bus", "train"]),
+    (
+        "transit_commute_pct",
+        [
+            "commute by transit",
+            "commuting by transit",
+            "commute by public transit",
+            "transit commuters",
+            "public transit",
+            "public transportation",
+            "transit",
+            "bus",
+            "buses",
+            "train",
+            "trains",
+        ],
+    ),
+    (
+        "avg_commute_minutes",
+        ["commute time", "commute", "commutes", "commuting", "travel time", "drive to work"],
+    ),
 ]
+
+# Topics people ask about that CivicLens deliberately does not track: no
+# source covers every New Jersey municipality through an API, and a measure
+# held for only some towns cannot be compared across the state. Checked
+# before metrics so "transit ridership" is refused rather than answered
+# with the transit commute share.
+UNTRACKED_TOPICS: dict[str, list[str]] = {
+    "crime": [
+        "violent crime",
+        "property crime",
+        "crime rate",
+        "crime",
+        "crimes",
+        "burglary",
+        "burglaries",
+        "theft",
+        "assault",
+        "homicide",
+        "murder",
+        "police",
+        "safety",
+        "safe",
+    ],
+    "building permits": ["building permits", "building permit", "permits", "permit", "housing starts"],
+    "transit ridership": ["transit ridership", "ridership", "riders"],
+}
 
 # Broad category asks. "Tell me about housing in Montclair" names no single
 # metric, so metric detection finds nothing and the question used to fall
 # through to a refusal despite being perfectly answerable from the fact
-# cards.
+# cards. Categories mirror those ingestion writes.
 CATEGORY_PATTERNS: dict[str, list[str]] = {
     "housing": ["housing", "houses", "homes", "property market", "real estate"],
     "population": ["demographics", "people", "residents", "who lives"],
     "employment": ["jobs", "labour market", "labor market", "workforce"],
     "transportation": ["transportation", "getting around", "transit", "commuting"],
-    "safety": ["safety", "crime"],
 }
 
 OVERVIEW_MARKERS = [
@@ -132,6 +211,8 @@ class RoutedQuery:
     place_count: int
     reason: str
     categories: list[str] = field(default_factory=list)
+    # Topics from UNTRACKED_TOPICS that the question asked about.
+    untracked: list[str] = field(default_factory=list)
     # Set on a COMPARE that also asks why. The figures still come from SQL;
     # this only asks the answer layer to add a retrieved explanation after
     # them, which is subject to the numeric check like any generated text.
@@ -148,28 +229,72 @@ def asks_for_reason(query: str) -> bool:
     return text.startswith(("why", "how come")) or any(m in text for m in REASON_MARKERS)
 
 
+def _phrase_pattern(phrase: str) -> re.Pattern:
+    # Lookarounds rather than  so phrases containing an apostrophe
+    # ("bachelor's") still anchor on whole words.
+    return re.compile(rf"(?<![a-z0-9]){re.escape(phrase)}(?![a-z0-9])")
+
+
+def _consume(text: str, phrases: list[str]) -> tuple[bool, str]:
+    """Whether any phrase occurs as whole words, and the text with every
+    occurrence blanked out so weaker patterns cannot match it again."""
+    matched = False
+    for phrase in phrases:
+        pattern = _phrase_pattern(phrase)
+        if pattern.search(text):
+            matched = True
+            text = pattern.sub(" ", text)
+    return matched, text
+
+
+def detect_untracked(query: str) -> list[str]:
+    text = f" {query.lower()} "
+    found = []
+    for topic, phrases in UNTRACKED_TOPICS.items():
+        matched, text = _consume(text, phrases)
+        if matched:
+            found.append(topic)
+    return found
+
+
 def detect_metrics(query: str) -> list[str]:
     text = f" {query.lower()} "
+    for phrases in UNTRACKED_TOPICS.values():
+        _, text = _consume(text, phrases)
     found: list[str] = []
     for key, phrases in METRIC_PATTERNS:
-        if any(p in text for p in phrases) and key not in found:
+        matched, text = _consume(text, phrases)
+        if matched:
             found.append(key)
-    # "unemployment" also contains "employment"; drop the weaker match.
-    if "unemployment_rate" in found and "employment" in found:
-        if "unemployment" in text and not re.search(r"\b(jobs|workforce|employed)\b", text):
-            found.remove("employment")
     return found
 
 
 def detect_categories(query: str) -> list[str]:
     text = f" {query.lower()} "
-    return [cat for cat, phrases in CATEGORY_PATTERNS.items() if any(p in text for p in phrases)]
+    return [
+        cat
+        for cat, phrases in CATEGORY_PATTERNS.items()
+        if any(_phrase_pattern(p).search(text) for p in phrases)
+    ]
 
 
 def route(query: str, place_count: int) -> RoutedQuery:
     text = f" {query.lower().strip()} "
     metrics = detect_metrics(text)
     categories = detect_categories(text)
+    untracked = detect_untracked(text)
+
+    # Asked about something CivicLens deliberately leaves out, and nothing it
+    # does track. Refused with the reason, rather than answered from the
+    # nearest fact card.
+    if untracked and not metrics:
+        return RoutedQuery(
+            Intent.UNSUPPORTED,
+            metrics,
+            place_count,
+            "asks about a topic CivicLens does not track statewide",
+            untracked=untracked,
+        )
 
     if place_count == 0 and any(m in text for m in METHODOLOGY_MARKERS):
         return RoutedQuery(

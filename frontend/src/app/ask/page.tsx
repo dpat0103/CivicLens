@@ -43,7 +43,8 @@ export default async function AskPage({ searchParams }: PageProps<"/ask">) {
           <div>
             <h3 className="text-sm font-medium text-ink">Outside the data</h3>
             <ul className="mt-2 space-y-1.5 text-sm text-ink-muted">
-              <li>School quality, or crime beyond the indicators held</li>
+              <li>Crime, building permits or transit ridership</li>
+              <li>School quality</li>
               <li>Anything after 2023, or forecasts</li>
               <li>Elected officials, local news, planning applications</li>
               <li>Places outside New Jersey</li>
