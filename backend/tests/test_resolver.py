@@ -43,7 +43,8 @@ def test_duplicate_names_resolve_to_distinct_fips_by_county(db):
 
 def test_both_duplicates_can_be_compared(db):
     places = resolve_places(
-        db, "Compare Franklin Township (Somerset County) and Franklin Township (Hunterdon County)")
+        db, "Compare Franklin Township (Somerset County) and Franklin Township (Hunterdon County)"
+    )
     assert [p.fips for p in places] == ["3403524990", "3401924840"]
 
 

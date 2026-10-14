@@ -45,7 +45,8 @@ def compare_locations(
             series = series_by_key.get(key)
             metrics[key] = series["latest_value"] if series else None
 
-        rows.append({"location": location, "growth_score": score,
-                     "metric_coverage": coverage, "metrics": metrics})
+        rows.append(
+            {"location": location, "growth_score": score, "metric_coverage": coverage, "metrics": metrics}
+        )
 
     return {"metric_keys": COMPARE_METRIC_KEYS, "rows": rows}

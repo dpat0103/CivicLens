@@ -6,6 +6,7 @@ module is imported, because app.database reads DATABASE_URL at import time
 and load_dotenv() would otherwise let a developer's .env point the suite at
 a real database.
 """
+
 import os
 
 os.environ["DATABASE_URL"] = "sqlite://"

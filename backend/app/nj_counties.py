@@ -35,9 +35,7 @@ NJ_COUNTIES: dict[str, str] = {
 }
 
 # Reverse lookup: county name (lowercase, no "County" suffix) -> FIPS code.
-COUNTY_NAME_TO_FIPS: dict[str, str] = {
-    name.lower(): fips for fips, name in NJ_COUNTIES.items()
-}
+COUNTY_NAME_TO_FIPS: dict[str, str] = {name.lower(): fips for fips, name in NJ_COUNTIES.items()}
 
 
 def county_fips_for_name(county_name: str | None) -> str | None:

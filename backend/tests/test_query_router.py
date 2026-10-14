@@ -3,6 +3,7 @@ would put a model on the numeric path. So every intent is pinned here.
 
 `route` receives text with place names already removed and the number of
 places that were resolved, which is how answer_question calls it."""
+
 import pytest
 
 from app.rag.query_router import Intent, detect_categories, detect_metrics, route
@@ -57,14 +58,17 @@ def test_overview_carries_its_category():
     assert route("tell me about housing in", 1).categories == ["housing"]
 
 
-@pytest.mark.parametrize("query, expected", [
-    ("unemployment rate", ["unemployment_rate"]),
-    ("jobs and unemployment", ["unemployment_rate", "employment"]),
-    ("median household income", ["median_household_income"]),
-    ("average commute time", ["avg_commute_minutes"]),
-    ("how many people live here", ["population"]),
-    ("nothing measurable", []),
-])
+@pytest.mark.parametrize(
+    "query, expected",
+    [
+        ("unemployment rate", ["unemployment_rate"]),
+        ("jobs and unemployment", ["unemployment_rate", "employment"]),
+        ("median household income", ["median_household_income"]),
+        ("average commute time", ["avg_commute_minutes"]),
+        ("how many people live here", ["population"]),
+        ("nothing measurable", []),
+    ],
+)
 def test_detect_metrics(query, expected):
     assert detect_metrics(query) == expected
 

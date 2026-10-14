@@ -18,6 +18,7 @@ Because pass 1 is generated from the database, the corpus can never drift
 from the numbers the rest of the API serves. Rebuild it whenever data is
 refreshed.
 """
+
 from __future__ import annotations
 
 from collections import defaultdict
@@ -40,8 +41,9 @@ CATEGORY_TITLES = {
 @dataclass
 class Chunk:
     """One retrievable unit, with everything needed to cite it."""
+
     chunk_id: str
-    kind: str                      # "fact_card" | "methodology"
+    kind: str  # "fact_card" | "methodology"
     text: str
     fips: str | None = None
     location_name: str | None = None
@@ -50,7 +52,7 @@ class Chunk:
     periods: list[int] = field(default_factory=list)
     sources: list[str] = field(default_factory=list)
     source_urls: list[str] = field(default_factory=list)
-    provenance: str = "measured"   # "measured" | "simulated" | "mixed" | "n/a"
+    provenance: str = "measured"  # "measured" | "simulated" | "mixed" | "n/a"
 
 
 def _fmt(value: float, unit: str | None) -> str:
@@ -112,8 +114,7 @@ def build_fact_cards(db: Session) -> list[Chunk]:
                 # said which town it belonged to. Chunks have to survive
                 # being read in isolation.
                 sentence = (
-                    f"{loc.name} {last.label.lower()} in {last.period} was "
-                    f"{_fmt(last.value, last.unit)}"
+                    f"{loc.name} {last.label.lower()} in {last.period} was " f"{_fmt(last.value, last.unit)}"
                 )
                 if first.period != last.period and first.value:
                     delta = ((last.value - first.value) / abs(first.value)) * 100
@@ -140,19 +141,21 @@ def build_fact_cards(db: Session) -> list[Chunk]:
                     "data, not measured observations."
                 )
 
-            chunks.append(Chunk(
-                chunk_id=f"fact:{loc.fips}:{category}",
-                kind="fact_card",
-                text=" ".join(lines),
-                fips=loc.fips,
-                location_name=loc.name,
-                category=category,
-                metric_keys=sorted(set(metric_keys)),
-                periods=sorted(set(periods)),
-                sources=sorted(set(sources)),
-                source_urls=sorted(set(urls)),
-                provenance=provenance,
-            ))
+            chunks.append(
+                Chunk(
+                    chunk_id=f"fact:{loc.fips}:{category}",
+                    kind="fact_card",
+                    text=" ".join(lines),
+                    fips=loc.fips,
+                    location_name=loc.name,
+                    category=category,
+                    metric_keys=sorted(set(metric_keys)),
+                    periods=sorted(set(periods)),
+                    sources=sorted(set(sources)),
+                    source_urls=sorted(set(urls)),
+                    provenance=provenance,
+                )
+            )
 
     return chunks
 
@@ -182,7 +185,8 @@ def _scoring_doc() -> str:
     return (
         "The Growth Score is a 0 to 100 composite "
         "built from the three-year percent change of six weighted indicators: "
-        + ", ".join(weight_lines) + ". "
+        + ", ".join(weight_lines)
+        + ". "
         f"Each metric's change is clamped to plus or minus {SATURATION_PCT:.0f}% before scoring, "
         "so a single outlier cannot dominate the result. The clamped value is mapped onto a "
         "0 to 100 scale and combined using the weights above, then divided by the total weight "

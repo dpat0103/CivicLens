@@ -12,13 +12,14 @@ alters existing ones, so a column added to a model will not appear in a
 database that already has that table. Schema changes therefore need a
 migration; see ingestion/migrate_provenance.py for the pattern.
 """
+
 import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
-from .database import Base, engine, get_db
+from .database import Base, engine
 from .routers import locations, compare, ask
 from .rag import store as _rag_store  # noqa: F401  registers the rag_chunks table
 

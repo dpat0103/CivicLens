@@ -67,8 +67,12 @@ class TestGrowthScore:
         score, label, coverage = compute_growth_score(full_set({}))
         assert score == 50.0
         assert label == "Stable"
-        assert coverage == {"metrics_used": 6, "metrics_total": 6,
-                            "weight_covered": 1.0, "missing_metrics": []}
+        assert coverage == {
+            "metrics_used": 6,
+            "metrics_total": 6,
+            "weight_covered": 1.0,
+            "missing_metrics": [],
+        }
 
     def test_saturation_caps_every_indicator(self):
         all_up = {k: 400.0 * cfg["direction"] for k, cfg in SCORE_WEIGHTS.items()}
@@ -116,13 +120,16 @@ class TestGrowthScore:
         assert coverage["metrics_used"] == 0
         assert coverage["weight_covered"] == 0
 
-    @pytest.mark.parametrize("pct, label", [
-        (25.0, "Strong growth"),
-        (7.0, "Moderate growth"),
-        (0.0, "Stable"),
-        (-7.0, "Moderate decline"),
-        (-25.0, "Strong decline"),
-    ])
+    @pytest.mark.parametrize(
+        "pct, label",
+        [
+            (25.0, "Strong growth"),
+            (7.0, "Moderate growth"),
+            (0.0, "Stable"),
+            (-7.0, "Moderate decline"),
+            (-25.0, "Strong decline"),
+        ],
+    )
     def test_bands(self, pct, label):
         moves = {k: pct * cfg["direction"] for k, cfg in SCORE_WEIGHTS.items()}
         assert compute_growth_score(full_set(moves))[1] == label

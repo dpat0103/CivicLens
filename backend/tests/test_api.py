@@ -1,5 +1,6 @@
 """HTTP layer. Thin by design, so these check transport concerns and the
 response shapes the frontend's hand-maintained types in lib/api.ts rely on."""
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -39,8 +40,16 @@ def test_list_and_search_locations(client):
 
     found = client.get("/locations", params={"q": "hob"}).json()
     assert [loc["name"] for loc in found] == ["Hoboken"]
-    assert set(found[0]) == {"id", "fips", "name", "state", "county", "location_type",
-                             "latitude", "longitude"}
+    assert set(found[0]) == {
+        "id",
+        "fips",
+        "name",
+        "state",
+        "county",
+        "location_type",
+        "latitude",
+        "longitude",
+    }
 
 
 def test_report_shape(client):
@@ -66,11 +75,14 @@ def test_compare(client):
     assert body["rows"][0]["metrics"]["employment"] == body["rows"][1]["metrics"]["employment"]
 
 
-@pytest.mark.parametrize("codes, status", [
-    (["3401732250"], 400),
-    (["3401732250"] * 7, 400),
-    (["3401732250", "0000000000"], 404),
-])
+@pytest.mark.parametrize(
+    "codes, status",
+    [
+        (["3401732250"], 400),
+        (["3401732250"] * 7, 400),
+        (["3401732250", "0000000000"], 404),
+    ],
+)
 def test_compare_rejects_bad_requests(client, codes, status):
     assert client.get("/compare", params={"fips": codes}).status_code == status
 

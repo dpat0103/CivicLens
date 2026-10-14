@@ -13,6 +13,7 @@ municipality in a county.
 
 Requires seed_locations.py to have run first.
 """
+
 import argparse
 import os
 import re
@@ -56,28 +57,33 @@ COMMUTE_WORKER_COUNT = "B08303_001E"
 # because ACS splits some concepts across several variables.
 RATIO_METRICS = [
     (
-        ["B25003_002E"], "B25003_001E",
+        ["B25003_002E"],
+        "B25003_001E",
         ("homeownership_rate", "Homeownership Rate", "%", "housing"),
     ),
     (
-        ["B25002_003E"], "B25002_001E",
+        ["B25002_003E"],
+        "B25002_001E",
         ("vacancy_rate", "Housing Vacancy Rate", "%", "housing"),
     ),
     (
-        ["B17001_002E"], "B17001_001E",
+        ["B17001_002E"],
+        "B17001_001E",
         ("poverty_rate", "Poverty Rate", "%", "population"),
     ),
     (
         # Bachelor's, master's, professional, doctorate. ACS has no single
         # "bachelor's or higher" variable, so the four are summed.
-        ["B15003_022E", "B15003_023E", "B15003_024E", "B15003_025E"], "B15003_001E",
+        ["B15003_022E", "B15003_023E", "B15003_024E", "B15003_025E"],
+        "B15003_001E",
         ("bachelors_or_higher_pct", "Bachelor's Degree or Higher", "%", "population"),
     ),
     (
         # Real transit data, replacing the simulated ridership index. This is
         # the share of commuters using public transportation, which is both
         # measurable per municipality and more meaningful than an index.
-        ["B08301_010E"], "B08301_001E",
+        ["B08301_010E"],
+        "B08301_001E",
         ("transit_commute_pct", "Commute by Public Transit", "%", "transportation"),
     ),
 ]
@@ -114,6 +120,7 @@ def _ratio(numerator_raws, denominator_raw) -> float | None:
         return None
     return round(pct, 1)
 
+
 # Census "not available" markers. Negative magic numbers, not values.
 # Inserting one poisons every downstream percent change and score.
 _SENTINELS = {"-666666666", "-999999999", "-888888888", "-222222222", None, ""}
@@ -122,9 +129,7 @@ _NOT_A_MUNICIPALITY = re.compile(r"not defined|not comparable", re.IGNORECASE)
 
 _TRAILING_STATE = re.compile(r",\s*New Jersey\s*$", re.IGNORECASE)
 _TRAILING_COUNTY_CLAUSE = re.compile(r",\s*[\w\s]+?\s+County\s*$", re.IGNORECASE)
-_TRAILING_TYPE_WORD = re.compile(
-    r"\s+(city|town|borough|village|township|municipality)\s*$", re.IGNORECASE
-)
+_TRAILING_TYPE_WORD = re.compile(r"\s+(city|town|borough|village|township|municipality)\s*$", re.IGNORECASE)
 
 
 def normalize(name: str) -> str:
@@ -201,52 +206,56 @@ def fetch_metrics(year: int, api_key: str) -> list[dict]:
                 # Any remaining negative is another sentinel variant. None of
                 # these four metrics can legitimately be negative.
                 continue
-            results.append(dict(
-                fips=fips,
-                match_name=normalize(census_name),
-                category=category,
-                metric_key=metric_key,
-                label=label,
-                unit=unit,
-                value=value,
-                period=year,
-                source="US Census ACS 5-Year Estimates",
-                source_url="https://www.census.gov/programs-surveys/acs",
-            ))
+            results.append(
+                dict(
+                    fips=fips,
+                    match_name=normalize(census_name),
+                    category=category,
+                    metric_key=metric_key,
+                    label=label,
+                    unit=unit,
+                    value=value,
+                    period=year,
+                    source="US Census ACS 5-Year Estimates",
+                    source_url="https://www.census.gov/programs-surveys/acs",
+                )
+            )
 
         for numerators, denominator, (metric_key, label, unit, category) in RATIO_METRICS:
             pct = _ratio([row[idx[n]] for n in numerators], row[idx[denominator]])
             if pct is None:
                 continue
-            results.append(dict(
-                fips=fips,
-                match_name=normalize(census_name),
-                category=category,
-                metric_key=metric_key,
-                label=label,
-                unit=unit,
-                value=pct,
-                period=year,
-                source="US Census ACS 5-Year Estimates",
-                source_url="https://www.census.gov/programs-surveys/acs",
-            ))
+            results.append(
+                dict(
+                    fips=fips,
+                    match_name=normalize(census_name),
+                    category=category,
+                    metric_key=metric_key,
+                    label=label,
+                    unit=unit,
+                    value=pct,
+                    period=year,
+                    source="US Census ACS 5-Year Estimates",
+                    source_url="https://www.census.gov/programs-surveys/acs",
+                )
+            )
 
-        mean_commute = _mean_commute(
-            row[idx[COMMUTE_AGGREGATE_MINUTES]], row[idx[COMMUTE_WORKER_COUNT]]
-        )
+        mean_commute = _mean_commute(row[idx[COMMUTE_AGGREGATE_MINUTES]], row[idx[COMMUTE_WORKER_COUNT]])
         if mean_commute is not None:
-            results.append(dict(
-                fips=fips,
-                match_name=normalize(census_name),
-                category="transportation",
-                metric_key="avg_commute_minutes",
-                label="Average Commute",
-                unit="min",
-                value=mean_commute,
-                period=year,
-                source="US Census ACS 5-Year Estimates",
-                source_url="https://www.census.gov/programs-surveys/acs",
-            ))
+            results.append(
+                dict(
+                    fips=fips,
+                    match_name=normalize(census_name),
+                    category="transportation",
+                    metric_key="avg_commute_minutes",
+                    label="Average Commute",
+                    unit="min",
+                    value=mean_commute,
+                    period=year,
+                    source="US Census ACS 5-Year Estimates",
+                    source_url="https://www.census.gov/programs-surveys/acs",
+                )
+            )
     return results
 
 
@@ -279,9 +288,7 @@ def upsert(db, rows: list[dict], progress: bool = False) -> dict:
         )
         .all()
     )
-    existing_by_key = {
-        (m.location_id, m.metric_key, m.period): m for m in existing_rows
-    }
+    existing_by_key = {(m.location_id, m.metric_key, m.period): m for m in existing_rows}
     if progress:
         print(f"  {len(existing_rows):,} existing rows loaded for comparison")
 
@@ -309,12 +316,20 @@ def upsert(db, rows: list[dict], progress: bool = False) -> dict:
             existing.provenance = "measured"
             updated += 1
         else:
-            to_insert.append(dict(
-                location_id=location.id, category=row["category"],
-                metric_key=row["metric_key"], label=row["label"], unit=row["unit"],
-                value=row["value"], period=row["period"], source=row["source"],
-                source_url=row["source_url"], provenance="measured",
-            ))
+            to_insert.append(
+                dict(
+                    location_id=location.id,
+                    category=row["category"],
+                    metric_key=row["metric_key"],
+                    label=row["label"],
+                    unit=row["unit"],
+                    value=row["value"],
+                    period=row["period"],
+                    source=row["source"],
+                    source_url=row["source_url"],
+                    provenance="measured",
+                )
+            )
 
     if to_insert:
         db.bulk_insert_mappings(models.Metric, to_insert)
@@ -334,9 +349,9 @@ def upsert(db, rows: list[dict], progress: bool = False) -> dict:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Fetch ACS 5-Year Estimates. Fetch SEVERAL years, not one: "
-                    "a single year gives no percent change, so every ACS metric "
-                    "drops out of the Growth Score and only countywide employment "
-                    "is left, which makes every town in a county score identically."
+        "a single year gives no percent change, so every ACS metric "
+        "drops out of the Growth Score and only countywide employment "
+        "is left, which makes every town in a county score identically."
     )
     parser.add_argument("--year", type=int, help="Single vintage, e.g. 2023.")
     parser.add_argument("--start-year", type=int, help="First vintage, inclusive.")
@@ -358,8 +373,10 @@ if __name__ == "__main__":
         raise SystemExit("Set CENSUS_API_KEY in your environment first.")
 
     if len(years) == 1:
-        print("NOTE: fetching a single vintage. Percent changes need at least two, "
-              "and three-year changes need a gap of three.\n")
+        print(
+            "NOTE: fetching a single vintage. Percent changes need at least two, "
+            "and three-year changes need a gap of three.\n"
+        )
 
     total, unmatched = 0, set()
     for year in years:
@@ -386,5 +403,7 @@ if __name__ == "__main__":
 
     print(f"\nTotal: {total} metric observations, all marked provenance=measured.")
     if unmatched:
-        print(f"{len(unmatched)} municipalities had no matching Location row "
-              f"(run seed_locations.py first): {', '.join(sorted(unmatched)[:10])}")
+        print(
+            f"{len(unmatched)} municipalities had no matching Location row "
+            f"(run seed_locations.py first): {', '.join(sorted(unmatched)[:10])}"
+        )

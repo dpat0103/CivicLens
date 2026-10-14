@@ -44,6 +44,7 @@ class MetricSeries(BaseModel):
 class MetricCoverage(BaseModel):
     """How much of the composite actually had data behind it. Two scores are
     only comparable when their coverage is comparable."""
+
     metrics_used: int
     metrics_total: int
     weight_covered: float
@@ -71,7 +72,7 @@ class CompareRow(BaseModel):
     location: LocationOut
     growth_score: float
     metric_coverage: MetricCoverage
-    metrics: dict[str, Optional[float]]  
+    metrics: dict[str, Optional[float]]
 
 
 class CompareResponse(BaseModel):

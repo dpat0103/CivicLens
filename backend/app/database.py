@@ -6,6 +6,7 @@ services. Set DATABASE_URL in a .env file to point at Postgres instead
 (e.g. postgresql://user:pass@localhost:5432/civiclens) -- no code changes
 needed, SQLAlchemy handles both.
 """
+
 import os
 from dotenv import load_dotenv
 from sqlalchemy import create_engine

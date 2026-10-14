@@ -6,6 +6,7 @@ what makes the metadata filter possible. Matching is longest-name-first
 because New Jersey place names collide by substring: "Union City" contains
 "Union", and matching greedily left to right would resolve the wrong place.
 """
+
 from __future__ import annotations
 
 import re
@@ -39,7 +40,7 @@ def resolve_places(db: Session, query: str) -> list[ResolvedPlace]:
     consumed: list[tuple[int, int]] = []
 
     # Longest names first so "Union City" wins over "Union".
-    for loc in sorted(locations, key=lambda l: len(l.name), reverse=True):
+    for loc in sorted(locations, key=lambda candidate: len(candidate.name), reverse=True):
         needle = f" {_normalize(loc.name)} "
         # Check every occurrence, not just the first: in "Union City and
         # Union" the first " union " sits inside the longer name already
@@ -51,9 +52,17 @@ def resolve_places(db: Session, query: str) -> list[ResolvedPlace]:
             end = start + len(needle) - 1
             if not any(start < c_end and end > c_start for c_start, c_end in consumed):
                 consumed.append((start, end))
-                candidates.append((start, ResolvedPlace(
-                    fips=loc.fips, name=loc.name, county=loc.county, matched_text=loc.name,
-                )))
+                candidates.append(
+                    (
+                        start,
+                        ResolvedPlace(
+                            fips=loc.fips,
+                            name=loc.name,
+                            county=loc.county,
+                            matched_text=loc.name,
+                        ),
+                    )
+                )
                 break
             start = haystack.find(needle, start + 1)
 

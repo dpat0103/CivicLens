@@ -11,6 +11,7 @@ retrieved chunks without a model, so the endpoint degrades to something
 honest and still cited rather than erroring when no API key is set. It is
 also what the test suite runs against, which keeps assertions deterministic.
 """
+
 from __future__ import annotations
 
 import os
@@ -36,8 +37,7 @@ you were given, and do not add a closing summary.
 class LLMProvider(Protocol):
     name: str
 
-    def generate(self, system: str, user: str) -> str:
-        ...
+    def generate(self, system: str, user: str) -> str: ...
 
 
 class ExtractiveLLM:
@@ -82,9 +82,20 @@ class ExtractiveLLM:
         # that they do. Cue phrases are the standard extractive-QA fix, and
         # they pick out the sentence that actually explains.
         wants_reason = question_lower.strip().startswith(("why", "how come"))
-        CUES = ("because", "since", "cannot", "opaque", "deliberate",
-                "rather than", "reason", "expected", "tradeoff", "so that",
-                "which means", "therefore")
+        CUES = (
+            "because",
+            "since",
+            "cannot",
+            "opaque",
+            "deliberate",
+            "rather than",
+            "reason",
+            "expected",
+            "tradeoff",
+            "so that",
+            "which means",
+            "therefore",
+        )
 
         scored = []
         for index, sentence in enumerate(sentences):

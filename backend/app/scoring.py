@@ -11,8 +11,6 @@ Two jobs:
 The weights are a judgement, not a finding, so they are declared in one
 place and reported through the API rather than buried in the calculation.
 """
-from collections import defaultdict
-from statistics import mean
 
 # Indicators in the composite and their share of it. direction -1 marks an
 # indicator where a fall is the desirable outcome.
@@ -47,8 +45,9 @@ def _pct_change(old: float, new: float) -> float | None:
     return round(((new - old) / abs(old)) * 100, 2)
 
 
-def build_series(rows: list, category: str, metric_key: str, label: str,
-                  unit: str | None, source: str | None) -> dict:
+def build_series(
+    rows: list, category: str, metric_key: str, label: str, unit: str | None, source: str | None
+) -> dict:
     """Build one metric's series. `rows` is (period, value) pairs, any order."""
     rows = sorted(rows, key=lambda r: r[0])
     history = [{"period": p, "value": v} for p, v in rows]
@@ -185,13 +184,18 @@ def headline_changes(series_by_key: dict, top_n: int = 5) -> list[dict]:
         pct = series.get("change_3y_pct")
         if pct is None:
             continue
-        candidates.append((abs(pct), {
-            "metric_key": series["metric_key"],
-            "label": series["label"],
-            "change_3y_pct": pct,
-            "baseline_period": series.get("baseline_3y_period"),
-            "latest_period": series.get("latest_period"),
-        }))
+        candidates.append(
+            (
+                abs(pct),
+                {
+                    "metric_key": series["metric_key"],
+                    "label": series["label"],
+                    "change_3y_pct": pct,
+                    "baseline_period": series.get("baseline_3y_period"),
+                    "latest_period": series.get("latest_period"),
+                },
+            )
+        )
 
     candidates.sort(key=lambda c: c[0], reverse=True)
     return [record for _, record in candidates[:top_n]]

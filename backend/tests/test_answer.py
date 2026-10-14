@@ -1,6 +1,7 @@
 """The guarantee the project is built around: numeric questions never reach
 a language model. Each numeric path is exercised with a model that raises
 if it is called at all."""
+
 import pytest
 
 from app.rag.answer import answer_question
@@ -19,8 +20,7 @@ def test_lookup_never_invokes_the_model(db):
         def generate(self, system, user):
             raise AssertionError("the model was reached on a numeric lookup")
 
-    result = answer_question(db, "What is the median rent in Montclair?",
-                             llm=ExplodingLLM())
+    result = answer_question(db, "What is the median rent in Montclair?", llm=ExplodingLLM())
     assert result["intent"] == "lookup"
     assert result["retrieval"]["used"] is False
 
@@ -50,13 +50,11 @@ def test_place_name_containing_a_metric_word_is_not_a_metric(db):
     # "Trenton" contains "rent". Without stripping place names first this
     # comparison would be narrowed to median rent.
     result = answer_question(db, "Compare Princeton and Trenton", llm=ExplodingLLM())
-    assert result["citations"][0]["metric_keys"] == [
-        "population", "median_rent", "median_household_income"]
+    assert result["citations"][0]["metric_keys"] == ["population", "median_rent", "median_household_income"]
 
 
 def test_explanatory_question_uses_retrieval(db):
-    result = answer_question(db, "Why is the growth score what it is in Camden?",
-                             llm=ExtractiveLLM())
+    result = answer_question(db, "Why is the growth score what it is in Camden?", llm=ExtractiveLLM())
     assert result["intent"] == "explanatory"
     assert result["retrieval"]["used"] is True
     assert result["retrieval"]["generator"] == "extractive"

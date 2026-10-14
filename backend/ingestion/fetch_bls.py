@@ -36,6 +36,7 @@ Usage:
 Docs: https://www.bls.gov/help/hlpforma.htm#LA
       https://www.bls.gov/developers/api_signature_v2.htm
 """
+
 import argparse
 import os
 import sys
@@ -78,8 +79,9 @@ def build_series_id(state_fips: str, county_fips: str, measure_code: str) -> str
     return f"LAUCN{state_fips}{county_fips}00000000{measure_code}"
 
 
-def fetch_county_series(county_fips_map: dict, start_year: int, end_year: int,
-                         api_key: str, state_fips: str = "34") -> dict:
+def fetch_county_series(
+    county_fips_map: dict, start_year: int, end_year: int, api_key: str, state_fips: str = "34"
+) -> dict:
     """Returns {county_name: {metric_key: {year: value}}}"""
     series_id_to_county = {}
     series_ids = []
@@ -156,17 +158,26 @@ def upsert(db, county_data: dict, period_years: list[int]):
                     existing.source = "Bureau of Labor Statistics, LAUS (county-level)"
                     existing.source_url = "https://www.bls.gov/lau/"
                 else:
-                    db.add(models.Metric(
-                        location_id=location.id, category=category, metric_key=metric_key,
-                        label=label, unit=unit, value=value, period=year,
-                        source="Bureau of Labor Statistics, LAUS (county-level)",
-                        source_url="https://www.bls.gov/lau/",
-                    ))
+                    db.add(
+                        models.Metric(
+                            location_id=location.id,
+                            category=category,
+                            metric_key=metric_key,
+                            label=label,
+                            unit=unit,
+                            value=value,
+                            period=year,
+                            source="Bureau of Labor Statistics, LAUS (county-level)",
+                            source_url="https://www.bls.gov/lau/",
+                        )
+                    )
                 updated += 1
 
     db.commit()
-    print(f"Matched {matched}/{len(locations)} locations to a county with BLS data. "
-          f"Upserted {updated} metric observations.")
+    print(
+        f"Matched {matched}/{len(locations)} locations to a county with BLS data. "
+        f"Upserted {updated} metric observations."
+    )
 
 
 if __name__ == "__main__":
@@ -180,8 +191,10 @@ if __name__ == "__main__":
     if not key:
         raise SystemExit("Set BLS_API_KEY in your environment first.")
 
-    print(f"Fetching county-level LAUS data for {len(NJ_COUNTY_FIPS)} NJ counties, "
-          f"{args.start_year}-{args.end_year}...")
+    print(
+        f"Fetching county-level LAUS data for {len(NJ_COUNTY_FIPS)} NJ counties, "
+        f"{args.start_year}-{args.end_year}..."
+    )
     county_data = fetch_county_series(NJ_COUNTY_FIPS, args.start_year, args.end_year, key, args.state)
 
     db = SessionLocal()

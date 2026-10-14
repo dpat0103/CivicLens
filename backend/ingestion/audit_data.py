@@ -17,6 +17,7 @@ Usage:
     python -m ingestion.audit_data
     python -m ingestion.audit_data --verbose
 """
+
 import argparse
 import os
 import sys
@@ -106,9 +107,12 @@ def check_county_uniform(db, verbose):
 
     for metric_key in sorted(metric_keys):
         rows = (
-            db.query(models.Location.county, models.Metric.period,
-                     func.count(func.distinct(models.Metric.value)).label("distinct_values"),
-                     func.count(models.Metric.id).label("total"))
+            db.query(
+                models.Location.county,
+                models.Metric.period,
+                func.count(func.distinct(models.Metric.value)).label("distinct_values"),
+                func.count(models.Metric.id).label("total"),
+            )
             .join(models.Metric, models.Metric.location_id == models.Location.id)
             .filter(models.Metric.metric_key == metric_key)
             .group_by(models.Location.county, models.Metric.period)
@@ -135,8 +139,11 @@ def check_simulated_after_real(db, verbose):
     print("  These make the latest value fabricated and every trend wrong.\n")
 
     latest_measured = (
-        db.query(models.Metric.location_id, models.Metric.metric_key,
-                 func.max(models.Metric.period).label("last_real"))
+        db.query(
+            models.Metric.location_id,
+            models.Metric.metric_key,
+            func.max(models.Metric.period).label("last_real"),
+        )
         .filter(models.Metric.provenance == "measured")
         .group_by(models.Metric.location_id, models.Metric.metric_key)
         .all()
@@ -177,8 +184,11 @@ def check_mixed_series(db, verbose):
     print("=" * 72)
 
     rows = (
-        db.query(models.Location.name, models.Metric.metric_key,
-                 func.count(func.distinct(models.Metric.provenance)).label("kinds"))
+        db.query(
+            models.Location.name,
+            models.Metric.metric_key,
+            func.count(func.distinct(models.Metric.provenance)).label("kinds"),
+        )
         .join(models.Metric, models.Metric.location_id == models.Location.id)
         .group_by(models.Location.id, models.Metric.metric_key)
         .having(func.count(func.distinct(models.Metric.provenance)) > 1)
@@ -210,9 +220,11 @@ def check_single_year_metrics(db, verbose):
     print("  Growth Score entirely.\n")
 
     rows = (
-        db.query(models.Metric.metric_key,
-                 models.Metric.location_id,
-                 func.count(func.distinct(models.Metric.period)).label("years"))
+        db.query(
+            models.Metric.metric_key,
+            models.Metric.location_id,
+            func.count(func.distinct(models.Metric.period)).label("years"),
+        )
         .group_by(models.Metric.metric_key, models.Metric.location_id)
         .all()
     )
@@ -235,9 +247,9 @@ def check_single_year_metrics(db, verbose):
     #                                        populations and not fixable by
     #                                        fetching more data
     global_years = dict(
-        db.query(models.Metric.metric_key,
-                 func.count(func.distinct(models.Metric.period)))
-        .group_by(models.Metric.metric_key).all()
+        db.query(models.Metric.metric_key, func.count(func.distinct(models.Metric.period)))
+        .group_by(models.Metric.metric_key)
+        .all()
     )
 
     ingestion_gaps, suppression = 0, 0
@@ -280,10 +292,12 @@ def check_coverage(db, verbose):
 
     total_locations = db.query(models.Location).count()
     rows = (
-        db.query(models.Metric.metric_key,
-                 func.count(func.distinct(models.Metric.location_id)).label("locations"),
-                 func.min(models.Metric.period).label("first"),
-                 func.max(models.Metric.period).label("last"))
+        db.query(
+            models.Metric.metric_key,
+            func.count(func.distinct(models.Metric.location_id)).label("locations"),
+            func.min(models.Metric.period).label("first"),
+            func.max(models.Metric.period).label("last"),
+        )
         .group_by(models.Metric.metric_key)
         .all()
     )
@@ -292,8 +306,10 @@ def check_coverage(db, verbose):
     for r in sorted(rows, key=lambda x: -x.locations):
         pct = 100 * r.locations / total_locations if total_locations else 0
         flag = "" if pct > 90 else "  <-- sparse"
-        print(f"    {r.metric_key:28} {r.locations:4}/{total_locations} "
-              f"({pct:5.1f}%)  {r.first}-{r.last}{flag}")
+        print(
+            f"    {r.metric_key:28} {r.locations:4}/{total_locations} "
+            f"({pct:5.1f}%)  {r.first}-{r.last}{flag}"
+        )
     print()
 
 

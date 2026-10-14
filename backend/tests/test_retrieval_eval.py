@@ -11,6 +11,7 @@ matching it cannot do. They are kept rather than deleted because they are
 the cases that should start passing when a hosted embedding provider is
 configured, which is how to verify that upgrade bought something.
 """
+
 import pytest
 
 from app.rag.answer import MIN_RETRIEVAL_SCORE, answer_question
@@ -97,15 +98,21 @@ def test_relevance_floor_is_positive():
     assert 0 < MIN_RETRIEVAL_SCORE < 1
 
 
-@pytest.mark.xfail(strict=True, reason="needs semantic matching: 'jobless' and 'nearby towns' share no "
-                                       "terms with the countywide employment note")
+@pytest.mark.xfail(
+    strict=True,
+    reason="needs semantic matching: 'jobless' and 'nearby towns' share no "
+    "terms with the countywide employment note",
+)
 def test_semantic_paraphrase_of_countywide_employment(db):
     _, chunks = retrieved(db, "Why do jobless figures match across nearby towns?")
     assert "meth:bls_geography" in chunks
 
 
-@pytest.mark.xfail(strict=True, reason="needs semantic matching: 'absent from the listings' paraphrases "
-                                       "'missing from the census geography'")
+@pytest.mark.xfail(
+    strict=True,
+    reason="needs semantic matching: 'absent from the listings' paraphrases "
+    "'missing from the census geography'",
+)
 def test_semantic_paraphrase_of_missing_municipality(db):
     _, chunks = retrieved(db, "Why would a small borough be absent from the listings?")
     assert "meth:census_geography" in chunks

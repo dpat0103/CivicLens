@@ -44,6 +44,7 @@ Usage:
 Safe to re-run. Existing locations are matched by normalized name and
 updated in place rather than duplicated.
 """
+
 import argparse
 import os
 import re
@@ -61,18 +62,14 @@ ACS_BASE_URL = "https://api.census.gov/data/{year}/acs/acs5"
 
 _TRAILING_STATE = re.compile(r",\s*New Jersey\s*$", re.IGNORECASE)
 _TRAILING_COUNTY_CLAUSE = re.compile(r",\s*[\w\s]+?\s+County\s*$", re.IGNORECASE)
-_TRAILING_TYPE_WORD = re.compile(
-    r"\s+(city|town|borough|village|township|municipality)\s*$", re.IGNORECASE
-)
+_TRAILING_TYPE_WORD = re.compile(r"\s+(city|town|borough|village|township|municipality)\s*$", re.IGNORECASE)
 
 # Census emits placeholder rows for territory not inside a real subdivision.
 # They are not municipalities and must not become Location rows.
 _NOT_A_MUNICIPALITY = re.compile(r"not defined|not comparable", re.IGNORECASE)
 
 
-_TYPE_WORD_CAPTURE = re.compile(
-    r"\s+(city|town|borough|village|township|municipality)\s*$", re.IGNORECASE
-)
+_TYPE_WORD_CAPTURE = re.compile(r"\s+(city|town|borough|village|township|municipality)\s*$", re.IGNORECASE)
 
 
 def base_and_type(name: str) -> tuple[str, str | None]:
@@ -132,14 +129,16 @@ def fetch_municipalities(year: int, api_key: str) -> list[dict]:
 
         pop_raw = row[idx["B01003_001E"]]
         base, type_word = base_and_type(census_name)
-        out.append({
-            "census_name": census_name,
-            "match_name": base,
-            "type_word": type_word,
-            "fips": f"34{county_fips}{row[idx['county subdivision']]}",
-            "county": county_name,
-            "population": float(pop_raw) if pop_raw not in (None, "-666666666") else None,
-        })
+        out.append(
+            {
+                "census_name": census_name,
+                "match_name": base,
+                "type_word": type_word,
+                "fips": f"34{county_fips}{row[idx['county subdivision']]}",
+                "county": county_name,
+                "population": float(pop_raw) if pop_raw not in (None, "-666666666") else None,
+            }
+        )
     return out
 
 
@@ -216,13 +215,15 @@ def seed(year: int, api_key: str, min_population: float = 0, prune: bool = False
                 by_fips[muni["fips"]] = location
                 updated += 1
             else:
-                db.add(models.Location(
-                    fips=muni["fips"],
-                    name=muni["display_name"],
-                    state="NJ",
-                    county=muni["county"],
-                    location_type="city",
-                ))
+                db.add(
+                    models.Location(
+                        fips=muni["fips"],
+                        name=muni["display_name"],
+                        state="NJ",
+                        county=muni["county"],
+                        location_type="city",
+                    )
+                )
                 created += 1
 
         db.flush()
@@ -236,9 +237,7 @@ def seed(year: int, api_key: str, min_population: float = 0, prune: bool = False
             for loc in db.query(models.Location).all():
                 if loc.fips in authoritative_fips:
                     continue
-                metric_count = (
-                    db.query(models.Metric).filter(models.Metric.location_id == loc.id).count()
-                )
+                metric_count = db.query(models.Metric).filter(models.Metric.location_id == loc.id).count()
                 if metric_count == 0:
                     pruned.append(loc.name)
                     db.delete(loc)
@@ -263,13 +262,16 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--year", type=int, default=2023)
     parser.add_argument(
-        "--min-population", type=float, default=0,
+        "--min-population",
+        type=float,
+        default=0,
         help="Skip municipalities below this population. Default 0 (keep all 564).",
     )
     parser.add_argument(
-        "--prune", action="store_true",
+        "--prune",
+        action="store_true",
         help="Delete existing metric-less Location rows that aren't real NJ "
-             "municipalities. Use this to clean up after the earlier place-based run.",
+        "municipalities. Use this to clean up after the earlier place-based run.",
     )
     args = parser.parse_args()
 
@@ -285,8 +287,10 @@ if __name__ == "__main__":
     if result["pruned"]:
         print(f"Pruned {len(result['pruned'])} non-municipality rows with no metrics attached.")
     if result["disambiguated_names"]:
-        print(f"{result['disambiguated_names']} municipalities share a name with another "
-              f"and were labelled with their county, e.g. 'Washington Township (Morris County)'.")
+        print(
+            f"{result['disambiguated_names']} municipalities share a name with another "
+            f"and were labelled with their county, e.g. 'Washington Township (Morris County)'."
+        )
     print(f"Total locations now: {result['total_locations']}")
     print()
     print("Every municipality has a county, so none will be skipped by the BLS batch job.")

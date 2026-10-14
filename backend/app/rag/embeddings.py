@@ -15,6 +15,7 @@ so it captures lexical overlap but not semantics -- good enough to assert
 that filtering, ranking and citation plumbing behave, not good enough for
 production relevance.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -57,7 +58,7 @@ class HashingEmbedder:
         for w in words:
             padded = f" {w} "
             for i in range(len(padded) - 2):
-                grams.append(padded[i:i + 3])
+                grams.append(padded[i : i + 3])
         for i in range(len(words) - 1):
             grams.append(f"{words[i]}_{words[i + 1]}")
         return grams
@@ -113,7 +114,7 @@ class _HttpEmbedder:
         # Hosted APIs cap batch size, and Render's free instance has a short
         # request timeout, so chunk rather than sending 3k cards at once.
         for start in range(0, len(texts), 96):
-            batch = texts[start:start + 96]
+            batch = texts[start : start + 96]
             resp = requests.post(
                 self.endpoint,
                 headers=self._headers(),
