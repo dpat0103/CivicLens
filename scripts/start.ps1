@@ -4,14 +4,16 @@
 # in their own PowerShell window, so you don't have to open two
 # terminals and remember the commands every time.
 #
+# Windows only. On macOS, Linux or Git Bash use scripts/start.sh.
+#
 # Usage: from the civiclens root folder, run:
-#   .\start.ps1
+#   .\scripts\start.ps1
 #
 # If PowerShell blocks it with an execution-policy error, run this
 # once first (only affects the current window):
 #   Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
 
-$root = $PSScriptRoot
+$root = Split-Path $PSScriptRoot -Parent
 
 Write-Host "Starting CivicLens backend (http://localhost:8000)..." -ForegroundColor Cyan
 Start-Process powershell -ArgumentList @(

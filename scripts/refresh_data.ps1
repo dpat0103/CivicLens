@@ -8,10 +8,12 @@
 #
 # Requires backend\.env to have CENSUS_API_KEY and BLS_API_KEY set.
 #
+# Windows only. On macOS, Linux or Git Bash use scripts/refresh_data.sh.
+#
 # Usage: from the civiclens root folder, run:
-#   .\refresh_data.ps1
+#   .\scripts\refresh_data.ps1
 
-$root = $PSScriptRoot
+$root = Split-Path $PSScriptRoot -Parent
 
 # Stop on the first failed step. The steps below are order-dependent:
 # fetch_census matches against Location rows that seed_locations creates,
@@ -40,19 +42,16 @@ Write-Host "(This does NOT run on every startup -- only when you run this script
 Set-Location "$root\backend"
 .\.venv\Scripts\Activate.ps1
 
-# 1. Create/refresh Location rows for every NJ municipality.
+# 1. Create/refresh Location rows for all 564 NJ municipalities.
 #    Must run first: fetch_census matches incoming Census rows against
-#    existing Location rows by name and cannot create new ones itself,
-#    so without this the refresh only ever touches the original pilot towns.
-#    --min-population filters out tiny Census Designated Places whose data
-#    is too sparse to produce a useful fact card.
+#    existing Location rows and cannot create new ones itself.
 Invoke-Step "Census geography (municipality list, FIPS codes, counties)" {
-    python -m ingestion.seed_locations --year 2023 --min-population 500
+    python -m ingestion.seed_locations --year 2023
 }
 
-# 2. ACS: population, median household income, median rent, commute.
-Invoke-Step "Census ACS (population, income, rent, commute)" {
-    python -m ingestion.fetch_census --year 2023 --state 34
+# 2. ACS 5-year: population, income, housing, education, commuting.
+Invoke-Step "Census ACS (population, income, housing, education, commute)" {
+    python -m ingestion.fetch_census --start-year 2019 --end-year 2023
 }
 
 # 3. LAUS: employment and unemployment, fetched once per county rather
@@ -78,8 +77,8 @@ python -c "from app.database import SessionLocal; from app import models; from s
 
 Write-Host ""
 Write-Host "Done." -ForegroundColor Green
-Write-Host "Crime, housing permits, and transit have no live source wired in" -ForegroundColor DarkGray
-Write-Host "and will remain 'simulated' until one is added." -ForegroundColor DarkGray
+Write-Host "Any 'simulated' rows above are leftovers from the demo seed. Check them with" -ForegroundColor DarkGray
+Write-Host "python -m ingestion.audit_data and remove them with ingestion.repair_data." -ForegroundColor DarkGray
 Write-Host ""
 Write-Host "Restart the backend (or it'll auto-reload if already running)" -ForegroundColor Green
 Write-Host "to serve the refreshed data." -ForegroundColor Green

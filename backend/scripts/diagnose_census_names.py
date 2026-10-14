@@ -3,9 +3,12 @@ Diagnostic: print the raw Census NAME field for any NJ place containing
 'Montclair' or 'Princeton', so we can see exactly how the API labels
 them and fix the name-matching regex if needed.
 
-Usage:
-    $env:CENSUS_API_KEY = "your-key"
-    python diagnose_census_names.py
+Kept for reference: it queries the Census place endpoint, which ingestion
+no longer uses (seed_locations.py explains why county subdivisions
+replaced it).
+
+Usage, from backend/:
+    CENSUS_API_KEY=your-key python scripts/diagnose_census_names.py
 """
 
 import os
