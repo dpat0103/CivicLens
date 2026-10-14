@@ -1,5 +1,7 @@
 # CivicLens
 
+[![CI](https://github.com/dpat0103/CivicLens/actions/workflows/ci.yml/badge.svg)](https://github.com/dpat0103/CivicLens/actions/workflows/ci.yml)
+
 **Compare any two New Jersey towns in seconds.** Rent, home values, income,
 commute times and more for all 564 NJ towns, from official Census and Labor
 Department data, side by side.
@@ -14,8 +16,9 @@ Department data, side by side.
 - **Compare towns side by side.** Put up to six towns in one table to see where
   they actually differ.
 - **Ask in plain English.** "What is the median rent in Princeton?" gets an
-  answer with its sources. The AI explains the data but never makes up a
-  number: figures are read straight from the database.
+  answer with its sources. Figures come straight from the database, and any
+  number in an AI-written explanation is checked against the source records
+  before it is shown.
 
 **564 towns · 15 indicators · 2019–2023 · ~40,000 observations**
 
@@ -136,7 +139,9 @@ alone does not distinguish them.
 
 ## What it looks like in practice
 
-Real responses from `POST /ask`, trimmed to the relevant fields.
+Real responses from the current code, trimmed to the relevant fields. They
+were produced by running the code against real Census and BLS figures for
+Westfield, Cranford and Summit, all in Union County.
 
 **A value question. No model involved.**
 
@@ -145,30 +150,51 @@ Real responses from `POST /ask`, trimmed to the relevant fields.
   "intent": "lookup",
   "grounded": true,
   "retrieval_used": false,
-  "answer": "Median Rent in Montclair was $2,410 in 2023, a change of +10.9% over three years.",
-  "citations": ["sql:3401348900:median_rent"]
+  "numeric_check": "not_applicable",
+  "answer": "Median Rent in Westfield was $2,211 in 2023, a change of +29.1% over three years.",
+  "citations": ["sql:3403979040:median_rent"]
 }
 ```
 
-**An explanatory question. Retrieval plus generation.**
+**Advice phrasing, still answered from SQL.** "Should I move to Westfield or
+Cranford for cheaper rent?" names two places and a metric, so it routes to
+COMPARE however it is worded.
 
 ```json
 {
-  "intent": "explanatory",
-  "grounded": true,
+  "intent": "compare",
+  "retrieval_used": false,
+  "answer": "Westfield: Growth Score 75.1 (Strong growth, computed from 6 of 6 scored metrics). Median Rent $2,211. Cranford: Growth Score 67.9 (Moderate growth, computed from 6 of 6 scored metrics). Median Rent $2,116.",
+  "citations": ["sql:3403979040:compare", "sql:3403915640:compare"]
+}
+```
+
+**A why question. SQL figures, then a checked explanation.** "Why do
+Westfield and Cranford have the same employment?"
+
+```json
+{
+  "intent": "compare",
   "retrieval_used": true,
-  "answer": "CivicLens therefore reports employment and unemployment at the county level and labels those figures Countywide. Hoboken employment (countywide) in 2023 was 351,011, up 3.2% from 340,000 in 2019. Bayonne employment (countywide) in 2023 was 351,011, up 3.2% from 340,000 in 2019.",
+  "numeric_check": "passed",
+  "answer": "Westfield: Growth Score 75.1 (Strong growth, computed from 6 of 6 scored metrics). Employment (Countywide) 289,684. Cranford: Growth Score 67.9 (Moderate growth, computed from 6 of 6 scored metrics). Employment (Countywide) 289,684. CivicLens therefore reports employment and unemployment at the county level and labels those figures Countywide. Cranford employment (countywide) in 2023 was 289,684, up 1.5% from 285,489 in 2019. Westfield employment (countywide) in 2023 was 289,684, up 1.5% from 285,489 in 2019.",
   "citations": [
+    "sql:3403979040:compare",
+    "sql:3403915640:compare",
+    "fact:3403915640:employment",
+    "fact:3403979040:employment",
     "meth:bls_geography",
-    "fact:3401736080:employment",
-    "fact:3400302080:employment"
+    "fact:3403915640:transportation",
+    "fact:3403979040:housing"
   ]
 }
 ```
 
-That answer is only possible because the corpus contains a hand-written note
-explaining why employment is countywide. Without it, a model asked why two
-towns share a figure would invent a plausible reason.
+The explanation is only possible because the corpus contains a hand-written
+note on why employment is countywide. Without it, a model asked why two towns
+share a figure would invent a plausible reason. This one was written by the
+extractive generator; with a hosted model configured, the same numeric check
+applies to its output.
 
 **Out of scope. A refusal, not a guess.**
 
@@ -176,20 +202,30 @@ towns share a figure would invent a plausible reason.
 {
   "intent": "unsupported",
   "grounded": false,
-  "answer": "Trenton is in the dataset, but that question is not about an indicator CivicLens tracks.",
+  "answer": "Summit is in the dataset, but that question is not about an indicator CivicLens tracks.",
   "suggestions": [
-    "What is the median rent in Trenton?",
-    "Why is the growth score what it is in Trenton?"
+    "What is the median rent in Summit?",
+    "Why is the growth score what it is in Summit?"
   ]
 }
 ```
 
-**Every score ships with its coverage.**
+Asking about something deliberately left out says why:
 
 ```json
 {
-  "growth_score": 61.1,
-  "growth_score_label": "Moderate growth",
+  "intent": "unsupported",
+  "answer": "CivicLens does not track crime. No source offers it for every New Jersey municipality through an API, and a figure held for only some towns cannot be compared across the state, so it is left out rather than partially covered.",
+  "suggestions": ["What is the poverty rate in Summit?", "Tell me about housing in Summit"]
+}
+```
+
+**Every score ships with its coverage.** From Westfield's report:
+
+```json
+{
+  "growth_score": 75.1,
+  "growth_score_label": "Strong growth",
   "metric_coverage": {
     "metrics_used": 6,
     "metrics_total": 6,
@@ -215,8 +251,11 @@ comparison.
 | Mean commute time, share commuting by transit                                                      | Census ACS 5-Year | 564 municipalities, 2019–2023   |
 | Employment, unemployment rate                                                                      | BLS LAUS          | 21 counties, applied countywide |
 
-Every observation carries a provenance flag and a source URL. Everything
-published is measured. Nothing is projected.
+Every observation carries a provenance flag and a source URL. Ingestion only
+writes measured values, and nothing is projected. Rows left over from the
+original demo seed are flagged `simulated`, labelled as demonstration data in
+the interface, and found and removed by `ingestion/audit_data.py` and
+`ingestion/repair_data.py`.
 
 ### Limits, stated up front
 
@@ -226,7 +265,8 @@ publish a municipal figure that looks precise and is quietly wrong, CivicLens
 publishes the county figure and labels it. Every municipality in a county
 shares employment numbers.
 
-**Nothing is dated after 2023.** ACS 5-year estimates publish on a lag.
+**No measured value is dated after 2023.** ACS 5-year estimates publish on a
+lag.
 
 **ACS estimates are five-year pools.** A figure labelled 2023 reflects roughly
 2019 through 2023. Consecutive releases overlap by four years of sample, so
@@ -255,22 +295,25 @@ life.
 **Deployment** Vercel and Render
 
 ```
+.github/workflows/ci.yml   lint, format check, tests, frontend lint and build
+scripts/                   start and refresh_data, as .sh and Windows .ps1
 backend/
 ├── app/
-│   ├── main.py            FastAPI app, CORS, health check
+│   ├── main.py            FastAPI app, CORS, health check, /ping
 │   ├── models.py          Location and Metric schema
 │   ├── scoring.py         series construction, composite score, coverage
 │   ├── nj_counties.py     county reference data, BLS series ID construction
 │   ├── routers/           /locations, /compare, /ask
 │   └── rag/
-│       ├── resolver.py      municipality names → FIPS
-│       ├── query_router.py  intent classification
-│       ├── corpus.py        fact cards + methodology documents
-│       ├── embeddings.py    pluggable embedding providers
-│       ├── lexical.py       BM25 and reciprocal rank fusion
-│       ├── store.py         chunk persistence, hybrid retrieval
-│       ├── llm.py           generation providers, extractive fallback
-│       └── answer.py        orchestration, guardrails, citations
+│       ├── resolver.py       municipality names → FIPS
+│       ├── query_router.py   intent classification, metric vocabulary
+│       ├── corpus.py         fact cards + methodology documents
+│       ├── embeddings.py     pluggable embedding providers
+│       ├── lexical.py        BM25 and reciprocal rank fusion
+│       ├── store.py          chunk persistence, hybrid retrieval
+│       ├── llm.py            generation providers, extractive fallback
+│       ├── numeric_check.py  verifies numbers in generated text
+│       └── answer.py         orchestration, guardrails, citations
 ├── ingestion/
 │   ├── seed_locations.py    every NJ municipality, from Census geography
 │   ├── fetch_census.py      ACS indicators
@@ -278,7 +321,15 @@ backend/
 │   ├── build_index.py       rebuild the retrieval index
 │   ├── audit_data.py        integrity checks
 │   └── repair_data.py       targeted fixes
-└── tests/                   122 tests
+├── scripts/                 one-off diagnostics
+└── tests/
+    ├── test_answer.py          numeric paths never reach a model
+    ├── test_numeric_check.py   invented numbers fall back, quoted ones pass
+    ├── test_query_router.py    every intent, the metric vocabulary
+    ├── test_resolver.py        name matching, duplicate names
+    ├── test_scoring.py         series, baselines, score and coverage
+    ├── test_api.py             endpoint shapes and errors
+    └── test_retrieval_eval.py  labelled retrieval eval
 ```
 
 **No vector database.** Chunks and embeddings live in the same PostgreSQL
@@ -302,8 +353,8 @@ category. Because they are generated, they cannot drift from what the API
 serves.
 
 **Methodology documents** are hand-written and are what let the assistant
-explain a data limitation rather than invent a reason for it. The Hoboken and
-Bayonne answer above is only correct because one of these exists.
+explain a data limitation rather than invent a reason for it. The Westfield
+and Cranford answer above is only correct because one of these exists.
 
 Three things make retrieval work on this data.
 
@@ -326,9 +377,13 @@ retrieval pulls sentences out of the card that gave them their subject.
 
 ## Testing
 
-**122 tests**, including a labelled **retrieval eval**: 25 questions each
-naming the chunk that must be retrieved, plus refusal cases, measured against
-a recall floor.
+The backend suite runs offline, with in-memory SQLite, the hashing embedder
+and the extractive generator, so CI needs no secrets. It includes a labelled
+**retrieval eval**: questions each naming the chunk that must be retrieved,
+plus refusal cases, measured against a recall floor in
+`tests/test_retrieval_eval.py`. Fixture data mirrors real ingestion output
+(the same fifteen metrics, measured, with countywide employment), including
+the duplicate township names that broke the first real run.
 
 This exists because RAG fails differently from ordinary code. Relevance
 regresses silently while every unit test passes and nothing throws. Unit tests
@@ -340,8 +395,11 @@ passing when a hosted embedding provider is configured, which is how you
 verify the upgrade bought something rather than assuming it did.
 
 The project also ships `audit_data.py`, which checks for implausible values,
-stale rows, mixed provenance and coverage gaps. Two of the four bugs below
-were found by running it.
+stale rows, mixed provenance and coverage gaps.
+
+CI runs `ruff check`, `ruff format --check` and `pytest` for the backend, and
+`npm run lint` and `npm run build` for the frontend, on every push to main and
+every pull request.
 
 ---
 
@@ -402,37 +460,60 @@ of analysis should be the first question, not a discovery.
 
 ## Running it
 
-Requires Python 3.12+, Node 20+, and free API keys from
-[Census](https://api.census.gov/data/key_signup.html) and
-[BLS](https://data.bls.gov/registrationEngine/).
+Requires Python 3.12+ and Node 20+. Loading real data needs free API keys
+from [Census](https://api.census.gov/data/key_signup.html) and
+[BLS](https://data.bls.gov/registrationEngine/); the tests do not.
+
+**Install**
 
 ```bash
 cd backend
-python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\Activate.ps1
+python -m venv .venv
+source .venv/bin/activate        # Windows PowerShell: .venv\Scripts\Activate.ps1
 pip install -r requirements-dev.txt
+cd ../frontend && npm install
+```
 
-export CENSUS_API_KEY=… BLS_API_KEY=…
+**Load data.** From the repository root, with `CENSUS_API_KEY` and
+`BLS_API_KEY` set in the environment or in `backend/.env`:
 
+```bash
+./scripts/refresh_data.sh        # Windows PowerShell: .\scripts\refresh_data.ps1
+```
+
+That runs, in order:
+
+```bash
 python -m ingestion.seed_locations --year 2023
 python -m ingestion.fetch_census --start-year 2019 --end-year 2023
 python -m ingestion.fetch_bls_batch --start-year 2019 --end-year 2023
 python -m ingestion.build_index
-
-pytest tests/ -q
-uvicorn app.main:app --reload
+python -m ingestion.audit_data
 ```
-
-```bash
-cd frontend && npm install && npm run dev
-```
-
-http://localhost:3000, with API docs at http://localhost:8000/docs.
 
 Order matters: `fetch_census` matches Location rows that `seed_locations`
 creates, `fetch_bls_batch` groups by the county it populates, and
-`build_index` regenerates fact cards from the metrics table so it runs last.
+`build_index` regenerates fact cards from the metrics table so it runs after
+both. For a quick look without keys, `python -m ingestion.seed_data` loads
+fifteen municipalities of simulated demonstration data instead (then run
+`python -m ingestion.build_index`).
 
-`python -m ingestion.audit_data` checks integrity at any point.
+**Start both servers**
+
+```bash
+./scripts/start.sh               # Windows PowerShell: .\scripts\start.ps1
+```
+
+The site is at http://localhost:3000 and the API docs at
+http://localhost:8000/docs.
+
+**Run the checks CI runs**
+
+```bash
+cd backend
+ruff check . && ruff format --check . && pytest -q
+cd ../frontend && npm run lint && npm run build
+```
 
 ### Keeping the demo warm
 
