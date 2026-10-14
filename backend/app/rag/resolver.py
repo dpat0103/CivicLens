@@ -25,7 +25,9 @@ class ResolvedPlace:
 
 
 def _normalize(text: str) -> str:
-    return re.sub(r"[^a-z0-9 ]+", " ", text.lower())
+    # Collapse whitespace so "Township (Warren County)" and "Township, Warren
+    # County" normalize identically; punctuation otherwise leaves uneven gaps.
+    return " ".join(re.sub(r"[^a-z0-9 ]+", " ", text.lower()).split())
 
 
 def resolve_places(db: Session, query: str) -> list[ResolvedPlace]:
@@ -39,17 +41,21 @@ def resolve_places(db: Session, query: str) -> list[ResolvedPlace]:
     # Longest names first so "Union City" wins over "Union".
     for loc in sorted(locations, key=lambda l: len(l.name), reverse=True):
         needle = f" {_normalize(loc.name)} "
+        # Check every occurrence, not just the first: in "Union City and
+        # Union" the first " union " sits inside the longer name already
+        # matched, and the standalone mention comes later.
         start = haystack.find(needle)
-        if start == -1:
-            continue
-        end = start + len(needle)
-        # Skip if this span overlaps a longer name already matched.
-        if any(start < c_end and end > c_start for c_start, c_end in consumed):
-            continue
-        consumed.append((start, end))
-        candidates.append((start, ResolvedPlace(
-            fips=loc.fips, name=loc.name, county=loc.county, matched_text=loc.name,
-        )))
+        while start != -1:
+            # Matching includes the surrounding spaces, so adjacent names
+            # share a boundary space; compare spans without it.
+            end = start + len(needle) - 1
+            if not any(start < c_end and end > c_start for c_start, c_end in consumed):
+                consumed.append((start, end))
+                candidates.append((start, ResolvedPlace(
+                    fips=loc.fips, name=loc.name, county=loc.county, matched_text=loc.name,
+                )))
+                break
+            start = haystack.find(needle, start + 1)
 
     return [place for _, place in sorted(candidates, key=lambda p: p[0])]
 
