@@ -3,14 +3,17 @@ Generation providers.
 
 The model only ever sees the explanatory path, and only ever sees retrieved
 context. The system prompt below forbids introducing numbers that are not
-present in that context, but the prompt is a second line of defence, not the
-first. The first is that questions asking for numbers never reach here at all.
+present in that context, but the prompt is not what enforces it. Questions
+asking for numbers never reach here at all, and whatever the model writes is
+checked by numeric_check.py, which discards any answer containing a number
+the context does not.
 
 `ExtractiveLLM` is the zero-configuration fallback. It stitches together the
 retrieved chunks without a model, so the endpoint degrades to something
 honest and still cited rather than erroring when no API key is set. It is
 also what the test suite runs against, which keeps assertions deterministic.
 """
+
 from __future__ import annotations
 
 import os
@@ -36,8 +39,7 @@ you were given, and do not add a closing summary.
 class LLMProvider(Protocol):
     name: str
 
-    def generate(self, system: str, user: str) -> str:
-        ...
+    def generate(self, system: str, user: str) -> str: ...
 
 
 class ExtractiveLLM:
@@ -82,9 +84,20 @@ class ExtractiveLLM:
         # that they do. Cue phrases are the standard extractive-QA fix, and
         # they pick out the sentence that actually explains.
         wants_reason = question_lower.strip().startswith(("why", "how come"))
-        CUES = ("because", "since", "cannot", "opaque", "deliberate",
-                "rather than", "reason", "expected", "tradeoff", "so that",
-                "which means", "therefore")
+        CUES = (
+            "because",
+            "since",
+            "cannot",
+            "opaque",
+            "deliberate",
+            "rather than",
+            "reason",
+            "expected",
+            "tradeoff",
+            "so that",
+            "which means",
+            "therefore",
+        )
 
         scored = []
         for index, sentence in enumerate(sentences):

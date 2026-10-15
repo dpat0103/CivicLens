@@ -18,6 +18,7 @@ BM25 is computed in-process over the chunk table. The corpus is a few
 thousand short documents, so building the index costs milliseconds and
 avoids adding a search service to the stack.
 """
+
 from __future__ import annotations
 
 import math
@@ -33,11 +34,13 @@ _TOKEN = re.compile(r"[a-z0-9]+")
 
 # Words that appear in nearly every fact card and carry no signal for
 # telling one municipality or category apart.
-_STOPWORDS = frozenset("""
+_STOPWORDS = frozenset(
+    """
 a an and are as at be been by for from had has have in into is it its of on
 or that the this to was were what when where which who will with
 county new jersey nj municipality
-""".split())
+""".split()
+)
 
 
 def tokenize(text: str) -> list[str]:
@@ -51,9 +54,7 @@ class BM25Index:
         self.doc_tokens = [tokenize(d) for d in documents]
         self.doc_lengths = [len(t) for t in self.doc_tokens]
         self.doc_count = len(documents)
-        self.avg_length = (
-            sum(self.doc_lengths) / self.doc_count if self.doc_count else 0.0
-        )
+        self.avg_length = sum(self.doc_lengths) / self.doc_count if self.doc_count else 0.0
 
         self.term_freqs: list[Counter] = [Counter(t) for t in self.doc_tokens]
 
@@ -89,9 +90,7 @@ class BM25Index:
         return out
 
 
-def reciprocal_rank_fusion(
-    rankings: list[list[int]], k: int = 60
-) -> dict[int, float]:
+def reciprocal_rank_fusion(rankings: list[list[int]], k: int = 60) -> dict[int, float]:
     """Combine several rankings of the same documents into one.
 
     RRF scores a document by the sum of 1/(k + rank) across the rankings it

@@ -26,40 +26,41 @@ export default function LocationSearch({
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Location[]>([]);
+  // The query the current results belong to. Loading is derived from it
+  // rather than set inside the effect, which would cascade renders.
+  const [resultsFor, setResultsFor] = useState("");
   const [open, setOpen] = useState(false);
   const [highlighted, setHighlighted] = useState(0);
-  const [loading, setLoading] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  const trimmed = query.trim();
+  const active = trimmed.length >= 2;
+  const loading = active && resultsFor !== trimmed;
+  const listOpen = open && active;
+
   useEffect(() => {
-    const q = query.trim();
-    if (q.length < 2) {
-      setResults([]);
-      setOpen(false);
-      return;
-    }
+    if (!active) return;
     let cancelled = false;
-    setLoading(true);
     const timer = setTimeout(() => {
-      listLocations(q)
+      listLocations(trimmed)
         .then((rows) => {
           if (cancelled) return;
           setResults(rows.slice(0, 20));
+          setResultsFor(trimmed);
           setHighlighted(0);
           setOpen(true);
         })
         .catch(() => {
-          if (!cancelled) setResults([]);
-        })
-        .finally(() => {
-          if (!cancelled) setLoading(false);
+          if (cancelled) return;
+          setResults([]);
+          setResultsFor(trimmed);
         });
     }, 180);
     return () => {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [query]);
+  }, [active, trimmed]);
 
   useEffect(() => {
     function onClick(e: MouseEvent) {
@@ -85,7 +86,7 @@ export default function LocationSearch({
   }
 
   function onKeyDown(e: React.KeyboardEvent) {
-    if (!open || visible.length === 0) return;
+    if (!listOpen || visible.length === 0) return;
     if (e.key === "ArrowDown") {
       e.preventDefault();
       setHighlighted((i) => (i + 1) % visible.length);
@@ -112,7 +113,7 @@ export default function LocationSearch({
         id="municipality-search"
         type="text"
         role="combobox"
-        aria-expanded={open}
+        aria-expanded={listOpen}
         aria-controls="municipality-results"
         aria-autocomplete="list"
         value={query}
@@ -122,13 +123,13 @@ export default function LocationSearch({
         className="w-full border border-rule-strong bg-surface px-4 py-3 text-base text-ink outline-none transition-colors placeholder:text-ink-faint focus:border-accent"
       />
 
-      {loading && query.trim().length >= 2 && !open && (
+      {loading && !listOpen && (
         <p className="absolute right-4 top-3.5 text-sm text-ink-faint">
           Searching…
         </p>
       )}
 
-      {open && (
+      {listOpen && (
         <ul
           id="municipality-results"
           role="listbox"

@@ -44,6 +44,7 @@ class MetricSeries(BaseModel):
 class MetricCoverage(BaseModel):
     """How much of the composite actually had data behind it. Two scores are
     only comparable when their coverage is comparable."""
+
     metrics_used: int
     metrics_total: int
     weight_covered: float
@@ -71,7 +72,7 @@ class CompareRow(BaseModel):
     location: LocationOut
     growth_score: float
     metric_coverage: MetricCoverage
-    metrics: dict[str, Optional[float]]  
+    metrics: dict[str, Optional[float]]
 
 
 class CompareResponse(BaseModel):
@@ -121,6 +122,11 @@ class AskResponse(BaseModel):
     # somewhere instead of just closing the door.
     suggestions: list[str] = []
     retrieval: RetrievalTrace
+    # How the numbers in a generated answer were checked: "not_applicable"
+    # for SQL answers and refusals, "passed" when every number appears in
+    # the retrieved records, "failed_fallback" when the model introduced one
+    # that did not and the extractive answer was shown instead.
+    numeric_check: str = "not_applicable"
 
 
 class CorpusStats(BaseModel):

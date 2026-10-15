@@ -7,9 +7,8 @@ long table: one row per (location, metric, period), which is what allows a
 series to be assembled at any granularity without schema changes when a new
 indicator is added.
 """
-from sqlalchemy import (
-    Column, Integer, String, Float, ForeignKey, UniqueConstraint, Text
-)
+
+from sqlalchemy import Column, Integer, String, Float, ForeignKey, UniqueConstraint, Text
 from sqlalchemy.orm import relationship
 from .database import Base
 
@@ -56,14 +55,16 @@ class Metric(Base):
     id = Column(Integer, primary_key=True, index=True)
     location_id = Column(Integer, ForeignKey("locations.id"), nullable=False, index=True)
 
-    category = Column(String(30), nullable=False, index=True)   # housing | employment | safety | transportation | population
+    category = Column(
+        String(30), nullable=False, index=True
+    )  # housing | employment | safety | transportation | population
     metric_key = Column(String(60), nullable=False, index=True)  # e.g. median_rent, unemployment_rate
-    label = Column(String(120), nullable=False)                  # human readable, e.g. "Median Rent"
-    unit = Column(String(20), nullable=True)                     # $, %, min, count
+    label = Column(String(120), nullable=False)  # human readable, e.g. "Median Rent"
+    unit = Column(String(20), nullable=True)  # $, %, min, count
     value = Column(Float, nullable=False)
-    period = Column(Integer, nullable=False, index=True)         # year, e.g. 2025
+    period = Column(Integer, nullable=False, index=True)  # year, e.g. 2025
 
-    source = Column(String(120), nullable=True)                  # e.g. "US Census ACS"
+    source = Column(String(120), nullable=True)  # e.g. "US Census ACS"
     source_url = Column(Text, nullable=True)
     # "measured" | "simulated". Tracked per observation rather than per
     # series: a metric can be measured in recent years and backfilled in
@@ -72,6 +73,4 @@ class Metric(Base):
 
     location = relationship("Location", back_populates="metrics")
 
-    __table_args__ = (
-        UniqueConstraint("location_id", "metric_key", "period", name="uq_metric_obs"),
-    )
+    __table_args__ = (UniqueConstraint("location_id", "metric_key", "period", name="uq_metric_obs"),)

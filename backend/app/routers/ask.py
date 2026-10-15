@@ -4,6 +4,7 @@ Thin by design. All routing, retrieval and guardrail logic lives in
 app.rag.answer so it can be tested without an HTTP layer; this module only
 handles transport concerns.
 """
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 

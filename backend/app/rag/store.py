@@ -17,6 +17,7 @@ than a network hop to an external index. If the corpus ever grows past the
 point where that holds, `PGVECTOR_ENABLED=1` switches the ranking step to a
 pgvector index on Neon without changing anything above this layer.
 """
+
 from __future__ import annotations
 
 import json
@@ -159,9 +160,7 @@ def search(
     dense_scores = matrix @ query_vector.astype(np.float32)
 
     if not query_text:
-        ranked = sorted(
-            zip(rows, dense_scores), key=lambda p: float(p[1]), reverse=True
-        )
+        ranked = sorted(zip(rows, dense_scores), key=lambda p: float(p[1]), reverse=True)
         return [Retrieved(row, float(score)) for row, score in ranked[:top_k]]
 
     lexical_scores = BM25Index([r.text for r in rows]).scores(query_text)

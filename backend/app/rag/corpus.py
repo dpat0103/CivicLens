@@ -18,6 +18,7 @@ Because pass 1 is generated from the database, the corpus can never drift
 from the numbers the rest of the API serves. Rebuild it whenever data is
 refreshed.
 """
+
 from __future__ import annotations
 
 from collections import defaultdict
@@ -40,8 +41,9 @@ CATEGORY_TITLES = {
 @dataclass
 class Chunk:
     """One retrievable unit, with everything needed to cite it."""
+
     chunk_id: str
-    kind: str                      # "fact_card" | "methodology"
+    kind: str  # "fact_card" | "methodology"
     text: str
     fips: str | None = None
     location_name: str | None = None
@@ -50,7 +52,7 @@ class Chunk:
     periods: list[int] = field(default_factory=list)
     sources: list[str] = field(default_factory=list)
     source_urls: list[str] = field(default_factory=list)
-    provenance: str = "measured"   # "measured" | "simulated" | "mixed" | "n/a"
+    provenance: str = "measured"  # "measured" | "simulated" | "mixed" | "n/a"
 
 
 def _fmt(value: float, unit: str | None) -> str:
@@ -112,8 +114,7 @@ def build_fact_cards(db: Session) -> list[Chunk]:
                 # said which town it belonged to. Chunks have to survive
                 # being read in isolation.
                 sentence = (
-                    f"{loc.name} {last.label.lower()} in {last.period} was "
-                    f"{_fmt(last.value, last.unit)}"
+                    f"{loc.name} {last.label.lower()} in {last.period} was " f"{_fmt(last.value, last.unit)}"
                 )
                 if first.period != last.period and first.value:
                     delta = ((last.value - first.value) / abs(first.value)) * 100
@@ -140,19 +141,21 @@ def build_fact_cards(db: Session) -> list[Chunk]:
                     "data, not measured observations."
                 )
 
-            chunks.append(Chunk(
-                chunk_id=f"fact:{loc.fips}:{category}",
-                kind="fact_card",
-                text=" ".join(lines),
-                fips=loc.fips,
-                location_name=loc.name,
-                category=category,
-                metric_keys=sorted(set(metric_keys)),
-                periods=sorted(set(periods)),
-                sources=sorted(set(sources)),
-                source_urls=sorted(set(urls)),
-                provenance=provenance,
-            ))
+            chunks.append(
+                Chunk(
+                    chunk_id=f"fact:{loc.fips}:{category}",
+                    kind="fact_card",
+                    text=" ".join(lines),
+                    fips=loc.fips,
+                    location_name=loc.name,
+                    category=category,
+                    metric_keys=sorted(set(metric_keys)),
+                    periods=sorted(set(periods)),
+                    sources=sorted(set(sources)),
+                    source_urls=sorted(set(urls)),
+                    provenance=provenance,
+                )
+            )
 
     return chunks
 
@@ -167,9 +170,6 @@ _METRIC_NAMES = {
     "bachelors_or_higher_pct": "share of adults with a bachelor's degree",
     "poverty_rate": "poverty rate",
     "employment": "countywide employment",
-    "new_housing_permits": "new housing permits",
-    "property_crime_rate": "property crime rate",
-    "violent_crime_rate": "violent crime rate",
 }
 
 
@@ -182,7 +182,8 @@ def _scoring_doc() -> str:
     return (
         "The Growth Score is a 0 to 100 composite "
         "built from the three-year percent change of six weighted indicators: "
-        + ", ".join(weight_lines) + ". "
+        + ", ".join(weight_lines)
+        + ". "
         f"Each metric's change is clamped to plus or minus {SATURATION_PCT:.0f}% before scoring, "
         "so a single outlier cannot dominate the result. The clamped value is mapped onto a "
         "0 to 100 scale and combined using the weights above, then divided by the total weight "
@@ -255,15 +256,15 @@ def build_methodology_docs() -> list[Chunk]:
             "values must say so explicitly.",
         ),
         (
-            "meth:crime_data",
-            "Crime rate caveats",
-            "Property and violent crime rates are drawn from New Jersey State Police Uniform Crime "
-            "Reporting summary data and are expressed per 1,000 residents. Reporting is voluntary and "
-            "agency participation varies year to year, so an apparent drop in crime can reflect a "
-            "reporting gap rather than an actual decline. Rates are also sensitive to the population "
-            "denominator, which means a municipality with a large daytime or commuter population can "
-            "look worse than residents experience. Crime figures carry a negative weight in the Growth "
-            "Score, so lower values raise the score.",
+            "meth:not_tracked",
+            "What CivicLens does not track",
+            "CivicLens does not track crime, building permits or transit ridership. Sources exist for "
+            "each, but none offers statewide coverage of New Jersey municipalities through an API. An "
+            "indicator held for only some municipalities cannot be compared across the state, and a "
+            "composite score that silently drops it elsewhere would mean something different in every "
+            "place, so these are left out rather than partially included. For getting around, CivicLens "
+            "reports the share of workers commuting by public transit and the average commute time, "
+            "both from the American Community Survey for every municipality.",
         ),
     ]
     return [

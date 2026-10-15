@@ -10,7 +10,7 @@ import {
 } from "@/lib/api";
 import {
   INTENT_LABELS,
-  INTENT_EXPLANATIONS,
+  answerExplanation,
   intentTone,
   isSimulated,
   metricKeyLabel,
@@ -239,7 +239,7 @@ export default function AskPanel({
           </p>
 
           <p className="mt-3 border-l-2 border-rule pl-3 text-xs leading-relaxed text-ink-muted">
-            {INTENT_EXPLANATIONS[result.intent]}
+            {answerExplanation(result)}
           </p>
 
           {result.citations.length > 0 && (

@@ -30,6 +30,7 @@ Then:
     python -m ingestion.repair_data --all --dry-run
     python -m ingestion.repair_data --all
 """
+
 import argparse
 import os
 import sys
@@ -46,8 +47,11 @@ PLAUSIBLE_COMMUTE_MINUTES = (5, 90)
 
 def drop_stale_simulated(db, dry_run: bool) -> int:
     latest_measured = (
-        db.query(models.Metric.location_id, models.Metric.metric_key,
-                 func.max(models.Metric.period).label("last_real"))
+        db.query(
+            models.Metric.location_id,
+            models.Metric.metric_key,
+            func.max(models.Metric.period).label("last_real"),
+        )
         .filter(models.Metric.provenance == "measured")
         .group_by(models.Metric.location_id, models.Metric.metric_key)
         .all()
@@ -142,10 +146,7 @@ def main():
             db.commit()
             after = db.query(models.Metric).count()
             print(f"\n  Metric rows: {before} -> {after}")
-            rows = (
-                db.query(models.Metric.provenance, func.count())
-                .group_by(models.Metric.provenance).all()
-            )
+            rows = db.query(models.Metric.provenance, func.count()).group_by(models.Metric.provenance).all()
             print(f"  Provenance now: {dict(rows)}")
             print("\n  Rebuild the assistant index:  python -m ingestion.build_index")
         else:

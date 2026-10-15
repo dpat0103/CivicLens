@@ -24,6 +24,7 @@ Usage:
     export BLS_API_KEY=your_key_here
     python -m ingestion.fetch_bls_batch --start-year 2019 --end-year 2023
 """
+
 import argparse
 import os
 import sys
@@ -61,7 +62,7 @@ _BATCH_SIZE = 50
 def fetch_series(series_ids: list[str], start_year: int, end_year: int, api_key: str) -> list[dict]:
     results = []
     for start in range(0, len(series_ids), _BATCH_SIZE):
-        batch = series_ids[start:start + _BATCH_SIZE]
+        batch = series_ids[start : start + _BATCH_SIZE]
         resp = requests.post(
             BLS_API_URL,
             json={
@@ -92,8 +93,14 @@ def parse_annual_values(series: dict) -> dict[int, float]:
     return out
 
 
-def upsert(db, county_fips: str, measure_code: str, values_by_year: dict[int, float],
-           existing_by_key: dict | None = None, pending_inserts: list | None = None) -> int:
+def upsert(
+    db,
+    county_fips: str,
+    measure_code: str,
+    values_by_year: dict[int, float],
+    existing_by_key: dict | None = None,
+    pending_inserts: list | None = None,
+) -> int:
     """Apply one county's series to every municipality in that county.
 
     Existing rows are looked up in a dictionary passed in by the caller
@@ -110,12 +117,16 @@ def upsert(db, county_fips: str, measure_code: str, values_by_year: dict[int, fl
     if not county_name:
         return 0
 
-    locations = db.query(models.Location).filter(
-        models.Location.state == "NJ", models.Location.county == county_name,
-    ).all()
+    locations = (
+        db.query(models.Location)
+        .filter(
+            models.Location.state == "NJ",
+            models.Location.county == county_name,
+        )
+        .all()
+    )
     if not locations:
-        print(f"  No locations found for {county_name} County, skipping "
-              f"(run seed_locations.py first).")
+        print(f"  No locations found for {county_name} County, skipping " f"(run seed_locations.py first).")
         return 0
 
     source = f"Bureau of Labor Statistics, LAUS ({county_name} County)"
@@ -133,12 +144,20 @@ def upsert(db, county_fips: str, measure_code: str, values_by_year: dict[int, fl
                 existing.label = label
                 existing.source = source
             else:
-                pending_inserts.append(dict(
-                    location_id=location.id, category=category, metric_key=metric_key,
-                    label=label, unit=unit, value=value, period=year,
-                    source=source, source_url="https://www.bls.gov/lau/",
-                    provenance="measured",
-                ))
+                pending_inserts.append(
+                    dict(
+                        location_id=location.id,
+                        category=category,
+                        metric_key=metric_key,
+                        label=label,
+                        unit=unit,
+                        value=value,
+                        period=year,
+                        source=source,
+                        source_url="https://www.bls.gov/lau/",
+                        provenance="measured",
+                    )
+                )
             count += 1
     return count
 
@@ -151,8 +170,10 @@ def run(start_year: int, end_year: int, api_key: str):
     }
     series_ids = list(id_to_key.keys())
 
-    print(f"Fetching {len(series_ids)} series ({len(NJ_COUNTIES)} counties "
-          f"x {len(MEASURE_CODE_MAP)} measures), {start_year}-{end_year}...")
+    print(
+        f"Fetching {len(series_ids)} series ({len(NJ_COUNTIES)} counties "
+        f"x {len(MEASURE_CODE_MAP)} measures), {start_year}-{end_year}..."
+    )
     series_list = fetch_series(series_ids, start_year, end_year, api_key)
 
     db = SessionLocal()
@@ -171,9 +192,7 @@ def run(start_year: int, end_year: int, api_key: str):
             )
             .all()
         )
-        existing_by_key = {
-            (m.location_id, m.metric_key, m.period): m for m in existing_rows
-        }
+        existing_by_key = {(m.location_id, m.metric_key, m.period): m for m in existing_rows}
         print(f"  {len(existing_rows):,} existing rows loaded for comparison")
 
         pending_inserts: list[dict] = []
@@ -183,14 +202,12 @@ def run(start_year: int, end_year: int, api_key: str):
                 continue
             county_fips, measure_code = key
             values = parse_annual_values(series)
-            total += upsert(db, county_fips, measure_code, values,
-                            existing_by_key, pending_inserts)
+            total += upsert(db, county_fips, measure_code, values, existing_by_key, pending_inserts)
 
         if pending_inserts:
             db.bulk_insert_mappings(models.Metric, pending_inserts)
         db.commit()
-        print(f"  {len(pending_inserts):,} inserted, "
-              f"{total - len(pending_inserts):,} updated")
+        print(f"  {len(pending_inserts):,} inserted, " f"{total - len(pending_inserts):,} updated")
     finally:
         db.close()
 

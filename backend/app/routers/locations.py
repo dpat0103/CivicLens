@@ -44,9 +44,7 @@ def _location_series(db: Session, location: models.Location) -> dict:
     series_by_key = {}
     for key, points in grouped.items():
         m = meta[key]
-        series_by_key[key] = scoring.build_series(
-            points, m.category, key, m.label, m.unit, m.source
-        )
+        series_by_key[key] = scoring.build_series(points, m.category, key, m.label, m.unit, m.source)
     return series_by_key
 
 

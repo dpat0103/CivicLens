@@ -13,9 +13,14 @@ import {
 
 export default function ComparePage() {
   const [selected, setSelected] = useState<Location[]>([]);
-  const [data, setData] = useState<CompareResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  // The outcome of the last comparison, tagged with the selection it was
+  // for. Loading and staleness are derived from the tag rather than set
+  // inside the effect, which would cascade renders.
+  const [outcome, setOutcome] = useState<{
+    key: string;
+    data: CompareResponse | null;
+    error: string | null;
+  }>({ key: "", data: null, error: null });
 
   // Pre-fill from ?fips=…&fips=… so links such as the home page example
   // open with the comparison already showing. Read from window.location
@@ -37,25 +42,35 @@ export default function ComparePage() {
       .catch(() => {});
   }, []);
 
+  const selectionKey = selected.map((s) => s.fips).join(",");
+  const ready = selected.length >= 2;
+  const current = ready && outcome.key === selectionKey;
+  const loading = ready && !current;
+  const data = current ? outcome.data : null;
+  const error = current ? outcome.error : null;
+
   useEffect(() => {
-    if (selected.length < 2) {
-      setData(null);
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    compareLocations(selected.map((s) => s.fips))
-      .then(setData)
-      .catch((e) => {
-        setError(
-          e instanceof ApiError
-            ? e.message
-            : "CivicLens is having trouble loading this comparison. Please try again in a minute.",
-        );
-        setData(null);
+    if (!ready) return;
+    let cancelled = false;
+    compareLocations(selectionKey.split(","))
+      .then((result) => {
+        if (!cancelled) setOutcome({ key: selectionKey, data: result, error: null });
       })
-      .finally(() => setLoading(false));
-  }, [selected]);
+      .catch((e) => {
+        if (cancelled) return;
+        setOutcome({
+          key: selectionKey,
+          data: null,
+          error:
+            e instanceof ApiError
+              ? e.message
+              : "CivicLens is having trouble loading this comparison. Please try again in a minute.",
+        });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [ready, selectionKey]);
 
   function addLocation(loc: Location) {
     setSelected((current) => {
